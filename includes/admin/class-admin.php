@@ -589,7 +589,6 @@ class Lattice_Mail_Admin {
 
         })(jQuery);
         </script>
-        <?php
 
             <h2><?php _e('All Campaigns', 'lattice-mail'); ?></h2>
             <table class="wp-list-table widefat fixed striped">
