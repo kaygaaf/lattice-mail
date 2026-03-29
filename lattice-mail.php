@@ -42,6 +42,7 @@ final class Lattice_Mail {
 
     private function load_dependencies() {
         require_once LATTICE_MAIL_PLUGIN_DIR . 'includes/class-subscriber.php';
+        require_once LATTICE_MAIL_PLUGIN_DIR . 'includes/class-segment.php';
         require_once LATTICE_MAIL_PLUGIN_DIR . 'includes/class-campaign.php';
         require_once LATTICE_MAIL_PLUGIN_DIR . 'includes/class-email-template.php';
         require_once LATTICE_MAIL_PLUGIN_DIR . 'includes/class-smtp.php';

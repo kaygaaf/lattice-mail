@@ -4,7 +4,10 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
+#[\AllowDynamicProperties]
 class Lattice_Mail_Subscriber {
+
+    private $table;
 
     private static $instance = null;
 
