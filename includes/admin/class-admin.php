@@ -42,6 +42,15 @@ class Lattice_Mail_Admin {
 
         add_submenu_page(
             'lattice-mail',
+            __('Segments', 'lattice-mail'),
+            __('Segments', 'lattice-mail'),
+            'manage_options',
+            'lattice-mail-segments',
+            [$this, 'render_segments']
+        );
+
+        add_submenu_page(
+            'lattice-mail',
             __('Campaigns', 'lattice-mail'),
             __('Campaigns', 'lattice-mail'),
             'manage_options',
@@ -143,7 +152,26 @@ class Lattice_Mail_Admin {
 
     public function render_subscribers() {
         $subscriber = Lattice_Mail_Subscriber::get_instance();
+        $segment = Lattice_Mail_Segment::get_instance();
         $subscribers = $subscriber->get_all();
+        $segments = $segment->get_all();
+
+        // Handle tag actions
+        if (isset($_POST['lattice_mail_add_segment']) && wp_verify_nonce($_POST['lattice_mail_segment_nonce'], 'lattice_mail_add_segment')) {
+            $subscriber_id = (int) $_POST['subscriber_id'];
+            $segment_id = (int) $_POST['segment_id'];
+            $segment->add_subscriber($segment_id, $subscriber_id);
+            wp_redirect(add_query_arg('updated', '1', wp_get_referer()));
+            exit;
+        }
+
+        if (isset($_POST['lattice_mail_remove_segment']) && wp_verify_nonce($_POST['lattice_mail_segment_nonce'], 'lattice_mail_remove_segment')) {
+            $subscriber_id = (int) $_POST['subscriber_id'];
+            $segment_id = (int) $_POST['segment_id'];
+            $segment->remove_subscriber($segment_id, $subscriber_id);
+            wp_redirect(add_query_arg('updated', '1', wp_get_referer()));
+            exit;
+        }
 
         ?>
         <div class="wrap lattice-mail-admin">
@@ -154,6 +182,7 @@ class Lattice_Mail_Admin {
                     <tr>
                         <th><?php _e('Email', 'lattice-mail'); ?></th>
                         <th><?php _e('Name', 'lattice-mail'); ?></th>
+                        <th><?php _e('Segments', 'lattice-mail'); ?></th>
                         <th><?php _e('Status', 'lattice-mail'); ?></th>
                         <th><?php _e('Source', 'lattice-mail'); ?></th>
                         <th><?php _e('Joined', 'lattice-mail'); ?></th>
@@ -161,12 +190,40 @@ class Lattice_Mail_Admin {
                 </thead>
                 <tbody>
                     <?php if (empty($subscribers)): ?>
-                        <tr><td colspan="5"><?php _e('No subscribers yet.', 'lattice-mail'); ?></td></tr>
+                        <tr><td colspan="6"><?php _e('No subscribers yet.', 'lattice-mail'); ?></td></tr>
                     <?php else: ?>
-                        <?php foreach ($subscribers as $s): ?>
+                        <?php foreach ($subscribers as $s):
+                            $sub_segments = $segment->get_for_subscriber($s->id);
+                        ?>
                             <tr>
                                 <td><?php echo esc_html($s->email); ?></td>
                                 <td><?php echo esc_html($s->name); ?></td>
+                                <td>
+                                    <?php foreach ($sub_segments as $seg): ?>
+                                        <span class="lattice-tag" style="background:#e8f0fe;color:#1a73e8;padding:2px 8px;border-radius:12px;margin-right:4px;display:inline-block;font-size:12px;">
+                                            <?php echo esc_html($seg->name); ?>
+                                            <form method="post" style="display:inline;margin-left:4px;">
+                                                <input type="hidden" name="subscriber_id" value="<?php echo esc_attr($s->id); ?>">
+                                                <input type="hidden" name="segment_id" value="<?php echo esc_attr($seg->id); ?>">
+                                                <?php wp_nonce_field('lattice_mail_remove_segment', 'lattice_mail_segment_nonce'); ?>
+                                                <button type="submit" name="lattice_mail_remove_segment" style="background:none;border:none;color:#d32f2f;cursor:pointer;font-size:12px;padding:0;line-height:1;">×</button>
+                                            </form>
+                                        </span>
+                                    <?php endforeach; ?>
+                                    <?php if (!empty($segments)): ?>
+                                        <form method="post" style="display:inline;">
+                                            <input type="hidden" name="subscriber_id" value="<?php echo esc_attr($s->id); ?>">
+                                            <select name="segment_id" style="font-size:12px;padding:2px;">
+                                                <option value=""><?php _e('Add tag...', 'lattice-mail'); ?></option>
+                                                <?php foreach ($segments as $seg): ?>
+                                                    <option value="<?php echo esc_attr($seg->id); ?>"><?php echo esc_html($seg->name); ?></option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                            <?php wp_nonce_field('lattice_mail_add_segment', 'lattice_mail_segment_nonce'); ?>
+                                            <button type="submit" name="lattice_mail_add_segment" style="font-size:12px;cursor:pointer;">+</button>
+                                        </form>
+                                    <?php endif; ?>
+                                </td>
                                 <td><span class="status-<?php echo esc_attr($s->status); ?>"><?php echo esc_html($s->status); ?></span></td>
                                 <td><?php echo esc_html($s->source); ?></td>
                                 <td><?php echo esc_html($s->created_at); ?></td>
@@ -179,14 +236,123 @@ class Lattice_Mail_Admin {
         <?php
     }
 
+    public function render_segments() {
+        $segment = Lattice_Mail_Segment::get_instance();
+        $segments = $segment->get_all();
+
+        // Handle create
+        if (isset($_POST['lattice_mail_create_segment']) && wp_verify_nonce($_POST['lattice_mail_segment_nonce'], 'lattice_mail_create_segment')) {
+            $name = sanitize_text_field($_POST['name'] ?? '');
+            $slug = sanitize_title($_POST['slug'] ?? '');
+            $description = sanitize_text_field($_POST['description'] ?? '');
+            if (!empty($name)) {
+                $segment->create($name, $slug, $description);
+                wp_redirect(add_query_arg('updated', '1', admin_url('admin.php?page=lattice-mail-segments')));
+                exit;
+            }
+        }
+
+        // Handle delete
+        if (isset($_POST['lattice_mail_delete_segment']) && wp_verify_nonce($_POST['lattice_mail_segment_nonce'], 'lattice_mail_delete_segment')) {
+            $id = (int) $_POST['segment_id'];
+            $segment->delete($id);
+            wp_redirect(add_query_arg('updated', '1', admin_url('admin.php?page=lattice-mail-segments')));
+            exit;
+        }
+
+        // Handle bulk add by email
+        if (isset($_POST['lattice_mail_bulk_add']) && wp_verify_nonce($_POST['lattice_mail_segment_nonce'], 'lattice_mail_bulk_add')) {
+            $segment_id = (int) $_POST['segment_id'];
+            $emails_raw = sanitize_textarea_field($_POST['emails'] ?? '');
+            $emails = array_filter(array_map('trim', explode("\n", $emails_raw)));
+            $added = $segment->bulk_add_by_email($segment_id, $emails);
+            echo '<div class="notice notice-success"><p>' . sprintf(esc_html(__('%d subscribers added to segment.', 'lattice-mail')), $added) . '</p></div>';
+        }
+
+        $subscribers_count = function($seg_id) use ($segment) {
+            return $segment->count_subscribers($seg_id);
+        };
+
+        ?>
+        <div class="wrap lattice-mail-admin">
+            <h1><?php _e('Segments', 'lattice-mail'); ?></h1>
+
+            <h2><?php _e('Create Segment', 'lattice-mail'); ?></h2>
+            <form method="post" style="max-width: 600px; margin-bottom: 30px;">
+                <table class="form-table">
+                    <tr>
+                        <th><label for="name"><?php _e('Name', 'lattice-mail'); ?> *</label></th>
+                        <td><input type="text" name="name" id="name" class="widefat" required placeholder="<?php _e('e.g. Kinderverhalen', 'lattice-mail'); ?>"></td>
+                    </tr>
+                    <tr>
+                        <th><label for="slug"><?php _e('Slug', 'lattice-mail'); ?></label></th>
+                        <td><input type="text" name="slug" id="slug" class="widefat" placeholder="<?php _e('auto-generated if empty', 'lattice-mail'); ?>"></td>
+                    </tr>
+                    <tr>
+                        <th><label for="description"><?php _e('Description', 'lattice-mail'); ?></label></th>
+                        <td><input type="text" name="description" id="description" class="widefat"></td>
+                    </tr>
+                </table>
+                <?php wp_nonce_field('lattice_mail_create_segment', 'lattice_mail_segment_nonce'); ?>
+                <button type="submit" name="lattice_mail_create_segment" class="button button-primary"><?php _e('Create Segment', 'lattice-mail'); ?></button>
+            </form>
+
+            <h2><?php _e('All Segments', 'lattice-mail'); ?></h2>
+            <?php if (empty($segments)): ?>
+                <p><?php _e('No segments yet. Create one above.', 'lattice-mail'); ?></p>
+            <?php else: ?>
+                <table class="wp-list-table widefat fixed striped">
+                    <thead>
+                        <tr>
+                            <th><?php _e('Name', 'lattice-mail'); ?></th>
+                            <th><?php _e('Slug', 'lattice-mail'); ?></th>
+                            <th><?php _e('Subscribers', 'lattice-mail'); ?></th>
+                            <th><?php _e('Actions', 'lattice-mail'); ?></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($segments as $seg): ?>
+                            <tr>
+                                <td><?php echo esc_html($seg->name); ?></td>
+                                <td><code><?php echo esc_html($seg->slug); ?></code></td>
+                                <td><?php echo (int) $seg->subscriber_count; ?></td>
+                                <td>
+                                    <form method="post" style="display:inline;">
+                                        <input type="hidden" name="segment_id" value="<?php echo esc_attr($seg->id); ?>">
+                                        <?php wp_nonce_field('lattice_mail_delete_segment', 'lattice_mail_segment_nonce'); ?>
+                                        <button type="submit" name="lattice_mail_delete_segment" class="button button-secondary" onclick="return confirm('Delete this segment?');"><?php _e('Delete', 'lattice-mail'); ?></button>
+                                    </form>
+                                    <button type="button" class="button" onclick="jQuery('#bulk-add-<?php echo esc_attr($seg->id); ?>').toggle()"><?php _e('Bulk add emails', 'lattice-mail'); ?></button>
+                                    <div id="bulk-add-<?php echo esc_attr($seg->id); ?>" style="display:none; margin-top:10px; padding:10px; background:#f0f0f0; border:1px solid #ccc;">
+                                        <form method="post">
+                                            <input type="hidden" name="segment_id" value="<?php echo esc_attr($seg->id); ?>">
+                                            <textarea name="emails" rows="5" class="widefat" placeholder="<?php _e('One email per line', 'lattice-mail'); ?>"></textarea>
+                                            <?php wp_nonce_field('lattice_mail_bulk_add', 'lattice_mail_segment_nonce'); ?>
+                                            <button type="submit" name="lattice_mail_bulk_add" class="button button-primary" style="margin-top:5px;"><?php _e('Add to segment', 'lattice-mail'); ?></button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            <?php endif; ?>
+        </div>
+        <?php
+    }
+
     public function render_campaigns() {
         $campaign = Lattice_Mail_Campaign::get_instance();
         $campaigns = $campaign->get_all();
 
+        $segment = Lattice_Mail_Segment::get_instance();
+        $segments = $segment->get_all();
+
         if (isset($_POST['lattice_mail_campaign_submit']) && wp_verify_nonce($_POST['lattice_mail_campaign_nonce'], 'lattice_mail_campaign')) {
             $subject = sanitize_text_field($_POST['subject'] ?? '');
             $content = wp_kses_post($_POST['content'] ?? '');
-            $campaign->create($subject, $content);
+            $segment_id = (int) ($_POST['segment_id'] ?? 0);
+            $campaign->create($subject, $content, 'draft', $segment_id);
             wp_redirect(admin_url('admin.php?page=lattice-mail-campaigns'));
             exit;
         }
@@ -215,6 +381,20 @@ class Lattice_Mail_Admin {
                     <tr>
                         <th><label for="content"><?php _e('Content', 'lattice-mail'); ?></label></th>
                         <td><textarea name="content" id="content" rows="10" class="widefat"></textarea></td>
+                    </tr>
+                    <tr>
+                        <th><label for="segment_id"><?php _e('Segment', 'lattice-mail'); ?></label></th>
+                        <td>
+                            <select name="segment_id" id="segment_id">
+                                <option value="0"><?php _e('All subscribers', 'lattice-mail'); ?></option>
+                                <?php foreach ($segments as $seg): ?>
+                                    <option value="<?php echo esc_attr($seg->id); ?>">
+                                        <?php echo esc_html($seg->name); ?> (<?php echo (int) $seg->subscriber_count; ?> <?php _e('subscribers', 'lattice-mail'); ?>)
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                            <p class="description"><?php _e('Leave at "All subscribers" to send to everyone.', 'lattice-mail'); ?></p>
+                        </td>
                     </tr>
                 </table>
                 <?php wp_nonce_field('lattice_mail_campaign', 'lattice_mail_campaign_nonce'); ?>

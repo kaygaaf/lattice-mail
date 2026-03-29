@@ -102,11 +102,13 @@ final class Lattice_Mail {
             subject varchar(500) NOT NULL,
             content text NOT NULL,
             status varchar(20) DEFAULT 'draft',
+            segment_id bigint(20) DEFAULT 0,
             sent_at datetime DEFAULT NULL,
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
             updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             PRIMARY KEY  (id),
-            KEY status (status)
+            KEY status (status),
+            KEY segment_id (segment_id)
         ) $charset_collate;";
 
         $sql_recipients = "CREATE TABLE $table_campaign_recipients (
@@ -120,10 +122,42 @@ final class Lattice_Mail {
             KEY subscriber_id (subscriber_id)
         ) $charset_collate;";
 
+        $table_segments = $wpdb->prefix . 'lattice_mail_segments';
+        $table_subscriber_segments = $wpdb->prefix . 'lattice_mail_subscriber_segments';
+
+        $sql_segments = "CREATE TABLE $table_segments (
+            id bigint(20) NOT NULL AUTO_INCREMENT,
+            name varchar(255) NOT NULL,
+            slug varchar(255) NOT NULL,
+            description varchar(500) DEFAULT '',
+            created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY  (id),
+            UNIQUE KEY slug (slug)
+        ) $charset_collate;";
+
+        $sql_subscriber_segments = "CREATE TABLE $table_subscriber_segments (
+            id bigint(20) NOT NULL AUTO_INCREMENT,
+            segment_id bigint(20) NOT NULL,
+            subscriber_id bigint(20) NOT NULL,
+            added_at datetime DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY  (id),
+            UNIQUE KEY segment_subscriber (segment_id, subscriber_id),
+            KEY segment_id (segment_id),
+            KEY subscriber_id (subscriber_id)
+        ) $charset_collate;";
+
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
         dbDelta($sql_subscribers);
         dbDelta($sql_campaigns);
         dbDelta($sql_recipients);
+        dbDelta($sql_segments);
+        dbDelta($sql_subscriber_segments);
+
+        // Migrate: add segment_id to campaigns if missing
+        $existing_cols = $wpdb->get_col("DESCRIBE $table_campaigns", 0);
+        if (!in_array('segment_id', $existing_cols)) {
+            $wpdb->query("ALTER TABLE $table_campaigns ADD COLUMN segment_id bigint(20) DEFAULT 0 AFTER status");
+        }
 
         update_option('lattice_mail_version', LATTICE_MAIL_VERSION);
     }

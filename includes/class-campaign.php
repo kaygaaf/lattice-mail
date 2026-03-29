@@ -24,7 +24,7 @@ class Lattice_Mail_Campaign {
         $this->table_recipients = $GLOBALS['wpdb']->prefix . 'lattice_mail_campaign_recipients';
     }
 
-    public function create($subject, $content, $status = 'draft') {
+    public function create($subject, $content, $status = 'draft', $segment_id = 0) {
         global $wpdb;
 
         $result = $wpdb->insert(
@@ -33,6 +33,7 @@ class Lattice_Mail_Campaign {
                 'subject' => $subject,
                 'content' => $content,
                 'status' => $status,
+                'segment_id' => (int) $segment_id,
                 'created_at' => current_time('mysql'),
             ]
         );
@@ -44,7 +45,7 @@ class Lattice_Mail_Campaign {
         return $wpdb->insert_id;
     }
 
-    public function update($id, $subject, $content) {
+    public function update($id, $subject, $content, $segment_id = 0) {
         global $wpdb;
 
         $wpdb->update(
@@ -52,6 +53,7 @@ class Lattice_Mail_Campaign {
             [
                 'subject' => $subject,
                 'content' => $content,
+                'segment_id' => (int) $segment_id,
                 'updated_at' => current_time('mysql'),
             ],
             ['id' => $id]
@@ -94,7 +96,26 @@ class Lattice_Mail_Campaign {
         }
 
         $subscriber = Lattice_Mail_Subscriber::get_instance();
-        $subscribers = $subscriber->get_all('active');
+
+        // If campaign has a segment, only get subscribers in that segment
+        $segment_id = !empty($campaign->segment_id) ? (int) $campaign->segment_id : 0;
+        if ($segment_id > 0) {
+            $segment = Lattice_Mail_Segment::get_instance();
+            $subscriber_ids = $segment->get_subscriber_ids($segment_id);
+            if (empty($subscriber_ids)) {
+                return new WP_Error('no_recipients', __('No subscribers in this segment.', 'lattice-mail'));
+            }
+            // Get full subscriber objects
+            $placeholders = implode(',', array_fill(0, count($subscriber_ids), '%d'));
+            $subscribers = $wpdb->get_results(
+                $wpdb->prepare(
+                    "SELECT * FROM {$wpdb->prefix}lattice_mail_subscribers WHERE id IN ($placeholders) AND status = 'active'",
+                    ...$subscriber_ids
+                )
+            );
+        } else {
+            $subscribers = $subscriber->get_all('active');
+        }
 
         if (empty($subscribers)) {
             return new WP_Error('no_recipients', __('No active subscribers.', 'lattice-mail'));
