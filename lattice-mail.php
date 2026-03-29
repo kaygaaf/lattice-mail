@@ -70,6 +70,7 @@ final class Lattice_Mail {
 
         add_action('wp_ajax_lattice_mail_subscribe', [$this, 'ajax_subscribe']);
         add_action('wp_ajax_nopriv_lattice_mail_subscribe', [$this, 'ajax_subscribe']);
+        add_action('wp_ajax_lattice_mail_test_email', [$this, 'ajax_test_email']);
         add_action('template_redirect', [$this, 'handle_url_actions']);
     }
 
@@ -255,6 +256,34 @@ final class Lattice_Mail {
         }
 
         wp_send_json_success(['message' => __('Successfully subscribed!', 'lattice-mail')]);
+    }
+
+    public function ajax_test_email() {
+        check_ajax_referer('lattice_mail_test_email', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(__('Permission denied.', 'lattice-mail'));
+        }
+
+        $test_email = sanitize_email($_POST['test_email'] ?? '');
+        if (empty($test_email) || !is_email($test_email)) {
+            wp_send_json_error(__('Please enter a valid email address.', 'lattice-mail'));
+        }
+
+        $smtp = Lattice_Mail_SMTP::get_instance();
+        $settings = $smtp->get_settings();
+
+        if ($settings['mailer'] !== 'smtp' || empty($settings['smtp_host'])) {
+            wp_send_json_error(__('SMTP is not configured. Please save SMTP settings first.', 'lattice-mail'));
+        }
+
+        $result = $smtp->test_connection($settings, $test_email);
+
+        if (is_wp_error($result)) {
+            wp_send_json_error($result->get_error_message());
+        }
+
+        wp_send_json_success(__('Test email sent successfully!', 'lattice-mail'));
     }
 
     public function handle_url_actions() {

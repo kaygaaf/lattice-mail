@@ -83,12 +83,15 @@ class Lattice_Mail_SMTP {
         }
     }
 
-    public function test_connection($settings) {
-        $test_email = $settings['from_email'];
+    public function test_connection($settings, $test_email = null) {
+        if (empty($test_email)) {
+            $test_email = $settings['from_email'];
+        }
         $result = $this->send_via_smtp(
             $test_email,
             __('Lattice Mail SMTP Test', 'lattice-mail'),
-            __('This is a test email from Lattice Mail plugin.', 'lattice-mail'),
+            '<p>' . __('This is a test email from Lattice Mail plugin.', 'lattice-mail') . '</p>' .
+            '<p>' . sprintf(__('Sent at: %s', 'lattice-mail'), current_time('Y-m-d H:i:s')) . '</p>',
             $settings,
             ['Content-Type: text/html; charset=UTF-8']
         );
