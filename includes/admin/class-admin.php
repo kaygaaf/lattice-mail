@@ -60,11 +60,29 @@ class Lattice_Mail_Admin {
 
         add_submenu_page(
             'lattice-mail',
+            __('Auto-Responders', 'lattice-mail'),
+            __('Auto-Responders', 'lattice-mail'),
+            'manage_options',
+            'lattice-mail-auto-responders',
+            [$this, 'render_auto_responders']
+        );
+
+        add_submenu_page(
+            'lattice-mail',
             __('Settings', 'lattice-mail'),
             __('Settings', 'lattice-mail'),
             'manage_options',
             'lattice-mail-settings',
             [$this, 'render_settings']
+        );
+
+        add_submenu_page(
+            'lattice-mail',
+            __('Import / Export', 'lattice-mail'),
+            __('Import / Export', 'lattice-mail'),
+            'manage_options',
+            'lattice-mail-import-export',
+            [$this, 'render_import_export']
         );
     }
 
@@ -75,6 +93,10 @@ class Lattice_Mail_Admin {
 
         wp_enqueue_style('lattice-mail-admin', LATTICE_MAIL_PLUGIN_URL . 'assets/admin.css', [], LATTICE_MAIL_VERSION);
         wp_enqueue_script('lattice-mail-admin', LATTICE_MAIL_PLUGIN_URL . 'assets/admin.js', ['jquery'], LATTICE_MAIL_VERSION, true);
+
+        // WordPress built-in editors (TinyMCE + Quicktags)
+        wp_enqueue_editor();
+        wp_enqueue_media();
     }
 
     public function render_dashboard() {
@@ -351,6 +373,31 @@ class Lattice_Mail_Admin {
     }
 
     public function render_campaigns() {
+        // Handle email preview render (inside iframe) — supports both GET and POST
+        if (isset($_GET['lattice_mail_preview']) || isset($_POST['lattice_mail_preview'])) {
+            $subject = sanitize_text_field($_POST['subject'] ?? $_GET['subject'] ?? 'Preview Subject');
+            $preview_text = sanitize_text_field($_POST['preview_text'] ?? $_GET['preview_text'] ?? '');
+            $content = wp_kses_post($_POST['content'] ?? $_GET['content'] ?? '');
+            $template_slug = sanitize_key($_POST['template'] ?? $_GET['template'] ?? 'default');
+
+            $email_template = Lattice_Mail_Email_Template::get_instance();
+            $template_html = $email_template->get_template_by_slug($template_slug);
+
+            $unsubscribe_url = home_url("?lattice_mail_action=unsubscribe&token=PREVIEW_TOKEN");
+
+            $html = $email_template->render($template_html, [
+                'site_name' => get_bloginfo('name'),
+                'subject' => $subject,
+                'preview_text' => $preview_text,
+                'content' => wp_kses_post($content),
+                'unsubscribe_link' => '<a href="' . esc_url($unsubscribe_url) . '">' . __('Unsubscribe', 'lattice-mail') . '</a>',
+                'unsubscribe_url' => $unsubscribe_url,
+            ]);
+
+            echo $html;
+            exit;
+        }
+
         $campaign = Lattice_Mail_Campaign::get_instance();
         $campaigns = $campaign->get_all();
 
@@ -359,9 +406,11 @@ class Lattice_Mail_Admin {
 
         if (isset($_POST['lattice_mail_campaign_submit']) && wp_verify_nonce($_POST['lattice_mail_campaign_nonce'], 'lattice_mail_campaign')) {
             $subject = sanitize_text_field($_POST['subject'] ?? '');
+            $preview_text = sanitize_text_field($_POST['preview_text'] ?? '');
             $content = wp_kses_post($_POST['content'] ?? '');
             $segment_id = (int) ($_POST['segment_id'] ?? 0);
-            $campaign->create($subject, $content, 'draft', $segment_id);
+            $template_slug = sanitize_key($_POST['template_slug'] ?? 'default');
+            $campaign->create($subject, $content, 'draft', $segment_id, $preview_text, $template_slug);
             wp_redirect(admin_url('admin.php?page=lattice-mail-campaigns'));
             exit;
         }
@@ -376,39 +425,171 @@ class Lattice_Mail_Admin {
             }
         }
 
+        $email_template = Lattice_Mail_Email_Template::get_instance();
+        $templates = $email_template->get_templates();
+        $default_content = '<p>' . __('Write your email content here...', 'lattice-mail') . '</p>';
         ?>
         <div class="wrap lattice-mail-admin">
             <h1><?php _e('Campaigns', 'lattice-mail'); ?></h1>
 
             <h2><?php _e('Create Campaign', 'lattice-mail'); ?></h2>
-            <form method="post" style="max-width: 600px;">
-                <table class="form-table">
-                    <tr>
-                        <th><label for="subject"><?php _e('Subject', 'lattice-mail'); ?></label></th>
-                        <td><input type="text" name="subject" id="subject" class="widefat" required></td>
-                    </tr>
-                    <tr>
-                        <th><label for="content"><?php _e('Content', 'lattice-mail'); ?></label></th>
-                        <td><textarea name="content" id="content" rows="10" class="widefat"></textarea></td>
-                    </tr>
-                    <tr>
-                        <th><label for="segment_id"><?php _e('Segment', 'lattice-mail'); ?></label></th>
-                        <td>
-                            <select name="segment_id" id="segment_id">
+            <form method="post" id="lattice-mail-campaign-form">
+                <div class="lattice-campaign-editor">
+                    <div class="lattice-editor-main">
+                        <table class="form-table">
+                            <tr>
+                                <th><label for="subject"><?php _e('Subject Line', 'lattice-mail'); ?> *</label></th>
+                                <td>
+                                    <input type="text" name="subject" id="subject" class="widefat" required placeholder="<?php _e('e.g. Nieuwsbrief Maart 2026', 'lattice-mail'); ?>">
+                                    <p class="description"><?php _e('The email subject line that recipients will see.', 'lattice-mail'); ?></p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th><label for="preview_text"><?php _e('Preview Text', 'lattice-mail'); ?></label></th>
+                                <td>
+                                    <input type="text" name="preview_text" id="preview_text" class="widefat" maxlength="500" placeholder="<?php _e('Short preview text shown in inbox (recommended: 40-90 chars)', 'lattice-mail'); ?>">
+                                    <p class="description"><?php _e('Shown after the subject in most email clients. Keep it under 90 characters.', 'lattice-mail'); ?></p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th><label for="lattice-mail-editor"><?php _e('Email Content', 'lattice-mail'); ?></label></th>
+                                <td>
+                                    <?php
+                                    wp_editor(
+                                        $default_content,
+                                        'lattice-mail-editor',
+                                        [
+                                            'textarea_name' => 'content',
+                                            'media_buttons' => true,
+                                            'textarea_rows' => 15,
+                                            'teeny' => false,
+                                            'quicktags' => true,
+                                        ]
+                                    );
+                                    ?>
+                                </td>
+                            </tr>
+                        </table>
+                    </div>
+                    <div class="lattice-editor-sidebar">
+                        <div class="lattice-editor-sidebar-box">
+                            <h3><?php _e('Template', 'lattice-mail'); ?></h3>
+                            <p class="description" style="margin-bottom:10px;"><?php _e('Choose an email template style. Your content will be wrapped in the selected template.', 'lattice-mail'); ?></p>
+                            <select name="template_slug" id="template_slug" style="width:100%;">
+                                <?php foreach ($templates as $t): ?>
+                                    <option value="<?php echo esc_attr($t['slug']); ?>"><?php echo esc_html($t['name']); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="lattice-editor-sidebar-box">
+                            <h3><?php _e('Segment', 'lattice-mail'); ?></h3>
+                            <select name="segment_id" id="segment_id" style="width:100%;">
                                 <option value="0"><?php _e('All subscribers', 'lattice-mail'); ?></option>
                                 <?php foreach ($segments as $seg): ?>
                                     <option value="<?php echo esc_attr($seg->id); ?>">
-                                        <?php echo esc_html($seg->name); ?> (<?php echo (int) $seg->subscriber_count; ?> <?php _e('subscribers', 'lattice-mail'); ?>)
+                                        <?php echo esc_html($seg->name); ?> (<?php echo (int) $seg->subscriber_count; ?>)
                                     </option>
                                 <?php endforeach; ?>
                             </select>
-                            <p class="description"><?php _e('Leave at "All subscribers" to send to everyone.', 'lattice-mail'); ?></p>
-                        </td>
-                    </tr>
-                </table>
+                        </div>
+                        <div class="lattice-editor-sidebar-box">
+                            <h3><?php _e('Preview', 'lattice-mail'); ?></h3>
+                            <button type="button" id="lattice-mail-preview-btn" class="button button-secondary" style="width:100%;">
+                                <?php _e('Open Email Preview', 'lattice-mail'); ?>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
                 <?php wp_nonce_field('lattice_mail_campaign', 'lattice_mail_campaign_nonce'); ?>
-                <button type="submit" name="lattice_mail_campaign_submit" class="button button-primary"><?php _e('Create Draft', 'lattice-mail'); ?></button>
+                <p style="margin-top:20px;">
+                    <button type="submit" name="lattice_mail_campaign_submit" class="button button-primary button-hero">
+                        <?php _e('Create Campaign Draft', 'lattice-mail'); ?>
+                    </button>
+                </p>
             </form>
+        </div>
+
+        <!-- Preview Modal -->
+        <div id="lattice-mail-preview-modal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; z-index:100000; background:rgba(0,0,0,0.7);">
+            <div style="background:#fff; max-width:700px; max-height:90vh; margin:40px auto; overflow:auto; border-radius:8px; position:relative;">
+                <div style="padding:20px; background:#f0f0f0; border-bottom:1px solid #ddd; display:flex; justify-content:space-between; align-items:center;">
+                    <h2 style="margin:0; font-size:18px;"><?php _e('Email Preview', 'lattice-mail'); ?></h2>
+                    <button type="button" id="lattice-mail-preview-close" style="background:none; border:none; font-size:24px; cursor:pointer; line-height:1;">&times;</button>
+                </div>
+                <div id="lattice-mail-preview-body" style="padding:0;">
+                    <iframe id="lattice-mail-preview-frame" name="lattice-preview-frame" style="width:100%; height:600px; border:none; display:block;"></iframe>
+                </div>
+            </div>
+        </div>
+
+        <!-- Hidden form for POST-based preview -->
+        <form id="lattice-mail-preview-form" method="post" action="<?php echo admin_url('admin.php?page=lattice-mail-campaigns'); ?>" target="lattice-preview-frame" style="display:none;">
+            <input type="hidden" name="lattice_mail_preview" value="1">
+            <input type="hidden" name="subject" id="preview_subject" value="">
+            <input type="hidden" name="preview_text" id="preview_preview_text" value="">
+            <input type="hidden" name="content" id="preview_content" value="">
+            <input type="hidden" name="template" id="preview_template" value="">
+        </form>
+
+        <script>
+        (function($) {
+            'use strict';
+
+            var LatticeMailPreview = {
+                modal: null,
+                frame: null,
+                init: function() {
+                    this.modal = $('#lattice-mail-preview-modal');
+                    this.frame = $('#lattice-mail-preview-frame');
+                    this.form = $('#lattice-mail-preview-form');
+
+                    $('#lattice-mail-preview-btn').on('click', $.proxy(this.openPreview, this));
+                    $('#lattice-mail-preview-close').on('click', $.proxy(this.closePreview, this));
+
+                    this.modal.on('click', function(e) {
+                        if (e.target === this) {
+                            LatticeMailPreview.closePreview();
+                        }
+                    });
+
+                    $(document).on('keyup', function(e) {
+                        if (e.key === 'Escape') {
+                            LatticeMailPreview.closePreview();
+                        }
+                    });
+                },
+                openPreview: function() {
+                    var subject = $('#subject').val() || '<?php esc_attr_e('No Subject', 'lattice-mail'); ?>';
+                    var preview_text = $('#preview_text').val() || '';
+                    var content = '';
+                    if (typeof tinyMCE !== 'undefined' && tinyMCE.activeEditor && !tinyMCE.activeEditor.isHidden()) {
+                        content = tinyMCE.activeEditor.getContent();
+                    } else {
+                        content = $('#lattice-mail-editor').val();
+                    }
+                    var template_slug = $('#template_slug').val() || 'default';
+
+                    $('#preview_subject').val(subject);
+                    $('#preview_preview_text').val(preview_text);
+                    $('#preview_content').val(content);
+                    $('#preview_template').val(template_slug);
+
+                    this.form.submit();
+                    this.modal.show();
+                },
+                closePreview: function() {
+                    this.modal.hide();
+                }
+            };
+
+            $(document).ready(function() {
+                LatticeMailPreview.init();
+            });
+
+        })(jQuery);
+        </script>
+        <?php
 
             <h2><?php _e('All Campaigns', 'lattice-mail'); ?></h2>
             <table class="wp-list-table widefat fixed striped">
@@ -448,6 +629,170 @@ class Lattice_Mail_Admin {
                                     <?php else: ?>
                                         <?php echo esc_html($c->sent_at); ?>
                                     <?php endif; ?>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
+        <?php
+    }
+
+    public function render_auto_responders() {
+        $ar = Lattice_Mail_Auto_Responder::get_instance();
+        $segment = Lattice_Mail_Segment::get_instance();
+        $segments = $segment->get_all();
+
+        // Handle create
+        if (isset($_POST['lattice_mail_ar_create']) && wp_verify_nonce($_POST['lattice_mail_ar_nonce'], 'lattice_mail_ar_create')) {
+            $title = sanitize_text_field($_POST['title'] ?? '');
+            $trigger_type = sanitize_key($_POST['trigger_type'] ?? 'welcome');
+            $delay_days = (int) ($_POST['delay_days'] ?? 0);
+            $subject = sanitize_text_field($_POST['subject'] ?? '');
+            $content = wp_kses_post($_POST['content'] ?? '');
+            $segment_id = (int) ($_POST['segment_id'] ?? 0);
+            $status = sanitize_key($_POST['status'] ?? 'active');
+
+            if (!empty($title) && !empty($subject) && !empty($content)) {
+                $ar->create([
+                    'title' => $title,
+                    'trigger_type' => $trigger_type,
+                    'delay_days' => $delay_days,
+                    'subject' => $subject,
+                    'content' => $content,
+                    'segment_id' => $segment_id,
+                    'status' => $status,
+                ]);
+                wp_redirect(add_query_arg('updated', '1', admin_url('admin.php?page=lattice-mail-auto-responders')));
+                exit;
+            }
+        }
+
+        // Handle delete
+        if (isset($_POST['lattice_mail_ar_delete']) && wp_verify_nonce($_POST['lattice_mail_ar_nonce'], 'lattice_mail_ar_delete')) {
+            $id = (int) $_POST['ar_id'];
+            $ar->delete($id);
+            wp_redirect(add_query_arg('updated', '1', admin_url('admin.php?page=lattice-mail-auto-responders')));
+            exit;
+        }
+
+        // Handle pause/activate
+        if (isset($_POST['lattice_mail_ar_toggle']) && wp_verify_nonce($_POST['lattice_mail_ar_nonce'], 'lattice_mail_ar_toggle')) {
+            $id = (int) $_POST['ar_id'];
+            $current_status = sanitize_text_field($_POST['current_status']);
+            if ($current_status === 'active') {
+                $ar->pause($id);
+            } else {
+                $ar->activate($id);
+            }
+            wp_redirect(add_query_arg('updated', '1', admin_url('admin.php?page=lattice-mail-auto-responders')));
+            exit;
+        }
+
+        $responders = $ar->get_all();
+
+        ?>
+        <div class="wrap lattice-mail-admin">
+            <h1><?php _e('Auto-Responders', 'lattice-mail'); ?></h1>
+            <p><?php _e('Auto-responders send emails automatically when a subscriber joins or after a set number of days.', 'lattice-mail'); ?></p>
+
+            <h2><?php _e('Create Auto-Responder', 'lattice-mail'); ?></h2>
+            <form method="post" style="max-width: 700px; margin-bottom: 40px; background: #f9f9f9; padding: 20px; border: 1px solid #ddd;">
+                <table class="form-table">
+                    <tr>
+                        <th><label for="ar_title"><?php _e('Name', 'lattice-mail'); ?> *</label></th>
+                        <td><input type="text" name="title" id="ar_title" class="widefat" required placeholder="<?php _e('e.g. Welcome Serie Deel 1', 'lattice-mail'); ?>"></td>
+                    </tr>
+                    <tr>
+                        <th><label for="ar_trigger"><?php _e('Trigger', 'lattice-mail'); ?></label></th>
+                        <td>
+                            <select name="trigger_type" id="ar_trigger">
+                                <option value="welcome"><?php _e('On subscription (welcome)', 'lattice-mail'); ?></option>
+                                <option value="drip"><?php _e('Drip (X days after subscribe)', 'lattice-mail'); ?></option>
+                            </select>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th><label for="ar_delay"><?php _e('Days Delay', 'lattice-mail'); ?></label></th>
+                        <td>
+                            <input type="number" name="delay_days" id="ar_delay" value="0" min="0" style="width: 80px;">
+                            <p class="description"><?php _e('0 = send immediately on subscription. For drip, set number of days after subscription.', 'lattice-mail'); ?></p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th><label for="ar_segment"><?php _e('Segment', 'lattice-mail'); ?></label></th>
+                        <td>
+                            <select name="segment_id" id="ar_segment">
+                                <option value="0"><?php _e('All subscribers', 'lattice-mail'); ?></option>
+                                <?php foreach ($segments as $seg): ?>
+                                    <option value="<?php echo esc_attr($seg->id); ?>"><?php echo esc_html($seg->name); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                            <p class="description"><?php _e('Leave at "All subscribers" to apply to everyone.', 'lattice-mail'); ?></p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th><label for="ar_subject"><?php _e('Subject', 'lattice-mail'); ?> *</label></th>
+                        <td><input type="text" name="subject" id="ar_subject" class="widefat" required placeholder="<?php _e('e.g. Welkom bij onze nieuwsbrief!', 'lattice-mail'); ?>"></td>
+                    </tr>
+                    <tr>
+                        <th><label for="ar_content"><?php _e('Content (HTML)', 'lattice-mail'); ?> *</label></th>
+                        <td><textarea name="content" id="ar_content" rows="8" class="widefat" required placeholder="<p>Hoi!</p><p>Welkom bij...</p>"></textarea></td>
+                    </tr>
+                    <tr>
+                        <th><label for="ar_status"><?php _e('Status', 'lattice-mail'); ?></label></th>
+                        <td>
+                            <select name="status" id="ar_status">
+                                <option value="active"><?php _e('Active', 'lattice-mail'); ?></option>
+                                <option value="paused"><?php _e('Paused', 'lattice-mail'); ?></option>
+                            </select>
+                        </td>
+                    </tr>
+                </table>
+                <?php wp_nonce_field('lattice_mail_ar_create', 'lattice_mail_ar_nonce'); ?>
+                <button type="submit" name="lattice_mail_ar_create" class="button button-primary"><?php _e('Create Auto-Responder', 'lattice-mail'); ?></button>
+            </form>
+
+            <h2><?php _e('All Auto-Responders', 'lattice-mail'); ?></h2>
+            <table class="wp-list-table widefat fixed striped">
+                <thead>
+                    <tr>
+                        <th><?php _e('Name', 'lattice-mail'); ?></th>
+                        <th><?php _e('Trigger', 'lattice-mail'); ?></th>
+                        <th><?php _e('Delay', 'lattice-mail'); ?></th>
+                        <th><?php _e('Status', 'lattice-mail'); ?></th>
+                        <th><?php _e('Sent', 'lattice-mail'); ?></th>
+                        <th><?php _e('Queued', 'lattice-mail'); ?></th>
+                        <th><?php _e('Actions', 'lattice-mail'); ?></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if (empty($responders)): ?>
+                        <tr><td colspan="7"><?php _e('No auto-responders yet.', 'lattice-mail'); ?></td></tr>
+                    <?php else: ?>
+                        <?php foreach ($responders as $r): ?>
+                            <tr>
+                                <td><?php echo esc_html($r->title); ?></td>
+                                <td><?php echo $r->trigger_type === 'welcome' ? __('Welcome email', 'lattice-mail') : __('Drip email', 'lattice-mail'); ?></td>
+                                <td><?php echo $r->delay_days; ?> <?php _e('days', 'lattice-mail'); ?></td>
+                                <td><span class="status-<?php echo esc_attr($r->status); ?>"><?php echo esc_html($r->status); ?></span></td>
+                                <td><?php echo (int) $ar->count_sent($r->id); ?></td>
+                                <td><?php echo (int) $ar->count_queue($r->id); ?></td>
+                                <td>
+                                    <form method="post" style="display:inline;">
+                                        <input type="hidden" name="ar_id" value="<?php echo esc_attr($r->id); ?>">
+                                        <input type="hidden" name="current_status" value="<?php echo esc_attr($r->status); ?>">
+                                        <?php wp_nonce_field('lattice_mail_ar_toggle', 'lattice_mail_ar_nonce'); ?>
+                                        <button type="submit" name="lattice_mail_ar_toggle" class="button button-secondary" style="font-size:12px;">
+                                            <?php echo $r->status === 'active' ? __('Pause', 'lattice-mail') : __('Activate', 'lattice-mail'); ?>
+                                        </button>
+                                    </form>
+                                    <form method="post" style="display:inline;" onsubmit="return confirm('<?php esc_attr_e('Are you sure?', 'lattice-mail'); ?>');">
+                                        <input type="hidden" name="ar_id" value="<?php echo esc_attr($r->id); ?>">
+                                        <?php wp_nonce_field('lattice_mail_ar_delete', 'lattice_mail_ar_nonce'); ?>
+                                        <button type="submit" name="lattice_mail_ar_delete" class="button button-link" style="color:#b32d2e;font-size:12px;"><?php _e('Delete', 'lattice-mail'); ?></button>
+                                    </form>
                                 </td>
                             </tr>
                         <?php endforeach; ?>
@@ -546,6 +891,161 @@ class Lattice_Mail_Admin {
                     });
                 });
             </script>
+        </div>
+        <?php
+    }
+
+    public function render_import_export() {
+        $subscriber = Lattice_Mail_Subscriber::get_instance();
+        $message = '';
+        $error = '';
+
+        // Handle CSV export
+        if (isset($_POST['lattice_mail_export']) && wp_verify_nonce($_POST['lattice_mail_export_nonce'], 'lattice_mail_export')) {
+            $status = sanitize_key($_POST['export_status'] ?? '');
+            $subscriber->export_to_csv($status ?: null);
+            // export_to_csv exits, so nothing below runs
+        }
+
+        // Handle template download
+        if (isset($_POST['lattice_mail_template']) && wp_verify_nonce($_POST['lattice_mail_template_nonce'], 'lattice_mail_template')) {
+            header('Content-Type: text/csv; charset=utf-8');
+            header('Content-Disposition: attachment; filename="lattice-mail-subscribers-template.csv"');
+            header('Cache-Control: no-store, no-cache');
+            echo "\xEF\xBB\xBF"; // BOM
+            echo "email,name\n";
+            echo "jan@example.com,Jan Jansen\n";
+            echo "piet@example.com,Piet Smit\n";
+            exit;
+        }
+
+        // Handle CSV import
+        if (isset($_POST['lattice_mail_import']) && wp_verify_nonce($_POST['lattice_mail_import_nonce'], 'lattice_mail_import')) {
+            if (!isset($_FILES['import_file']) || $_FILES['import_file']['error'] !== UPLOAD_ERR_OK) {
+                $error = __('No file uploaded or upload error.', 'lattice-mail');
+            } else {
+                $file = $_FILES['import_file'];
+                $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+                if ($ext !== 'csv') {
+                    $error = __('Only CSV files are supported.', 'lattice-mail');
+                } else {
+                    $send_confirmation = !empty($_POST['send_confirmation']);
+                    $skip_duplicates = !empty($_POST['skip_duplicates']);
+                    $result = $subscriber->import_from_csv($file['tmp_name'], $send_confirmation, $skip_duplicates);
+                    $message = sprintf(
+                        __('Import complete: %d added, %d skipped, %d errors.', 'lattice-mail'),
+                        $result['added'],
+                        $result['skipped'],
+                        $result['errors']
+                    );
+                }
+            }
+        }
+
+        // Count subscribers by status
+        $all = $subscriber->get_all();
+        $active = $subscriber->get_all('active');
+        $pending = $subscriber->get_all('pending');
+        $unsubscribed = $subscriber->get_all('unsubscribed');
+
+        ?>
+        <div class="wrap lattice-mail-admin">
+            <h1><?php _e('Import / Export Subscribers', 'lattice-mail'); ?></h1>
+
+            <?php if ($message): ?>
+                <div class="notice notice-success"><p><?php echo esc_html($message); ?></p></div>
+            <?php endif; ?>
+            <?php if ($error): ?>
+                <div class="notice notice-error"><p><?php echo esc_html($error); ?></p></div>
+            <?php endif; ?>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-top: 20px;">
+
+                <!-- EXPORT -->
+                <div style="background: #f9f9f9; padding: 20px; border: 1px solid #ddd;">
+                    <h2><?php _e('Export Subscribers', 'lattice-mail'); ?></h2>
+                    <p><?php _e('Download your subscribers as a CSV file. You can filter by status.', 'lattice-mail'); ?></p>
+
+                    <form method="post">
+                        <table class="form-table">
+                            <tr>
+                                <th><label for="export_status"><?php _e('Status Filter', 'lattice-mail'); ?></label></th>
+                                <td>
+                                    <select name="export_status" id="export_status">
+                                        <option value=""><?php _e('All subscribers', 'lattice-mail'); ?></option>
+                                        <option value="active"><?php _e('Active', 'lattice-mail'); ?></option>
+                                        <option value="pending"><?php _e('Pending', 'lattice-mail'); ?></option>
+                                        <option value="unsubscribed"><?php _e('Unsubscribed', 'lattice-mail'); ?></option>
+                                    </select>
+                                </td>
+                            </tr>
+                        </table>
+                        <p style="margin-top:10px;">
+                            <strong><?php _e('Current counts:', 'lattice-mail'); ?></strong><br>
+                            <?php echo count($all); ?> <?php _e('total', 'lattice-mail'); ?> |
+                            <?php echo count($active); ?> <?php _e('active', 'lattice-mail'); ?> |
+                            <?php echo count($pending); ?> <?php _e('pending', 'lattice-mail'); ?> |
+                            <?php echo count($unsubscribed); ?> <?php _e('unsubscribed', 'lattice-mail'); ?>
+                        </p>
+                        <?php wp_nonce_field('lattice_mail_export', 'lattice_mail_export_nonce'); ?>
+                        <button type="submit" name="lattice_mail_export" class="button button-primary">
+                            <?php _e('Download CSV', 'lattice-mail'); ?>
+                        </button>
+                    </form>
+                </div>
+
+                <!-- IMPORT -->
+                <div style="background: #f9f9f9; padding: 20px; border: 1px solid #ddd;">
+                    <h2><?php _e('Import Subscribers', 'lattice-mail'); ?></h2>
+                    <p><?php _e('Upload a CSV file with email addresses. First row must be headers: email, name (optional).', 'lattice-mail'); ?></p>
+                    <p><?php _e('Duplicate detection: already subscribed emails are skipped by default.', 'lattice-mail'); ?></p>
+
+                    <form method="post" enctype="multipart/form-data">
+                        <table class="form-table">
+                            <tr>
+                                <th><label for="import_file"><?php _e('CSV File', 'lattice-mail'); ?></label></th>
+                                <td>
+                                    <input type="file" name="import_file" id="import_file" accept=".csv" required>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th><?php _e('Options', 'lattice-mail'); ?></th>
+                                <td>
+                                    <label>
+                                        <input type="checkbox" name="send_confirmation" value="1">
+                                        <?php _e('Send confirmation email (subscribers will be pending until confirmed)', 'lattice-mail'); ?>
+                                    </label>
+                                    <br>
+                                    <label>
+                                        <input type="checkbox" name="skip_duplicates" value="1" checked>
+                                        <?php _e('Skip already subscribed emails', 'lattice-mail'); ?>
+                                    </label>
+                                </td>
+                            </tr>
+                        </table>
+                        <p class="description" style="margin-bottom:10px;">
+                            <?php _e('CSV format example:', 'lattice-mail'); ?><br>
+                            <code>email,name</code><br>
+                            <code>jan@example.com,Jan Jansen</code><br>
+                            <code>piet@example.com,Piet Smit</code>
+                        </p>
+                        <?php wp_nonce_field('lattice_mail_import', 'lattice_mail_import_nonce'); ?>
+                        <button type="submit" name="lattice_mail_import" class="button button-primary">
+                            <?php _e('Import CSV', 'lattice-mail'); ?>
+                        </button>
+                    </form>
+                </div>
+
+            </div>
+
+            <hr style="margin: 40px 0;">
+
+            <h2><?php _e('CSV Template', 'lattice-mail'); ?></h2>
+            <p><?php _e('Download a blank CSV template to use for import:', 'lattice-mail'); ?></p>
+            <form method="post" style="display:inline;">
+                <?php wp_nonce_field('lattice_mail_template', 'lattice_mail_template_nonce'); ?>
+                <button type="submit" name="lattice_mail_template" class="button"><?php _e('Download Template', 'lattice-mail'); ?></button>
+            </form>
         </div>
         <?php
     }

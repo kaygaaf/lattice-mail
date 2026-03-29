@@ -1,5 +1,5 @@
 .lattice-mail-admin {
-    max-width: 1200px;
+    max-width: 1400px;
 }
 
 .lattice-mail-admin h1 {
@@ -13,6 +13,69 @@
     margin-bottom: 15px;
     padding-bottom: 10px;
     border-bottom: 1px solid #ddd;
+}
+
+.lattice-campaign-editor {
+    display: grid;
+    grid-template-columns: 1fr 280px;
+    gap: 24px;
+    align-items: start;
+}
+
+.lattice-editor-main {
+    min-width: 0;
+}
+
+.lattice-editor-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.lattice-editor-sidebar-box {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 16px;
+}
+
+.lattice-editor-sidebar-box h3 {
+    margin: 0 0 10px;
+    font-size: 14px;
+    color: #1d2327;
+}
+
+.lattice-editor-sidebar-box .description {
+    margin-bottom: 10px;
+}
+
+#lattice-mail-editor-wrap {
+    min-height: 400px;
+}
+
+#lattice-mail-editor-wrap .wp-editor-container {
+    border: 1px solid #ddd;
+}
+
+.lattice-mail-editor-error {
+    border: 1px solid #dc2626 !important;
+}
+
+.lattice-mail-editor-error input {
+    border-color: #dc2626 !important;
+}
+
+.lattice-mail-editor-success {
+    border: 1px solid #16a34a !important;
+}
+
+#lattice-mail-preview-modal > div {
+    width: 90%;
+    max-width: 700px;
+}
+
+#lattice-mail-preview-modal iframe {
+    background: #fff;
 }
 
 .lattice-mail-stats {

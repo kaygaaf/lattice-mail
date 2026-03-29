@@ -267,4 +267,14 @@ class Lattice_Mail_Segment {
             (int) $segment_id
         ));
     }
+
+    public function subscriber_in_segment($segment_id, $subscriber_id) {
+        global $wpdb;
+        $count = $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$this->table_subscriber_segments} WHERE segment_id = %d AND subscriber_id = %d",
+            (int) $segment_id,
+            (int) $subscriber_id
+        ));
+        return $count > 0;
+    }
 }

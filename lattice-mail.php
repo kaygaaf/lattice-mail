@@ -46,6 +46,7 @@ final class Lattice_Mail {
         require_once LATTICE_MAIL_PLUGIN_DIR . 'includes/class-campaign.php';
         require_once LATTICE_MAIL_PLUGIN_DIR . 'includes/class-email-template.php';
         require_once LATTICE_MAIL_PLUGIN_DIR . 'includes/class-smtp.php';
+        require_once LATTICE_MAIL_PLUGIN_DIR . 'includes/class-auto-responder.php';
         require_once LATTICE_MAIL_PLUGIN_DIR . 'includes/api/class-api-subscribers.php';
         require_once LATTICE_MAIL_PLUGIN_DIR . 'includes/api/class-api-campaigns.php';
         require_once LATTICE_MAIL_PLUGIN_DIR . 'includes/class-subscribe-form.php';
@@ -65,6 +66,7 @@ final class Lattice_Mail {
         add_action('init', [$this, 'init']);
         add_action('rest_api_init', [$this, 'register_api_routes']);
         add_action('transition_post_status', [$this, 'notify_subscribers_on_publish'], 10, 3);
+        add_action('lattice_mail_process_responder_queue', [Lattice_Mail_Auto_Responder::get_instance(), 'process_queue']);
 
         add_action('wp_ajax_lattice_mail_subscribe', [$this, 'ajax_subscribe']);
         add_action('wp_ajax_nopriv_lattice_mail_subscribe', [$this, 'ajax_subscribe']);
@@ -73,6 +75,15 @@ final class Lattice_Mail {
 
     public function init() {
         load_plugin_textdomain('lattice-mail', false, dirname(plugin_basename(__FILE__)) . '/languages');
+
+        // Register every_5_minutes cron schedule
+        add_filter('cron_schedules', function($schedules) {
+            $schedules['every_5_minutes'] = [
+                'interval' => 5 * 60,
+                'display' => __('Every 5 Minutes', 'lattice-mail'),
+            ];
+            return $schedules;
+        });
     }
 
     public function activate() {
@@ -164,6 +175,54 @@ final class Lattice_Mail {
         $existing_recip_cols = $wpdb->get_col("DESCRIBE $table_campaign_recipients", 0);
         if (!in_array('clicked_at', $existing_recip_cols)) {
             $wpdb->query("ALTER TABLE $table_campaign_recipients ADD COLUMN clicked_at datetime DEFAULT NULL AFTER opened_at");
+        }
+
+        // Migrate: add preview_text to campaigns if missing
+        $existing_camp_cols = $wpdb->get_col("DESCRIBE $table_campaigns", 0);
+        if (!in_array('preview_text', $existing_camp_cols)) {
+            $wpdb->query("ALTER TABLE $table_campaigns ADD COLUMN preview_text varchar(500) DEFAULT '' AFTER subject");
+        }
+
+        // Auto-responder tables
+        $table_responders = $wpdb->prefix . 'lattice_mail_auto_responders';
+        $table_queue = $wpdb->prefix . 'lattice_mail_responder_queue';
+
+        $sql_responders = "CREATE TABLE $table_responders (
+            id bigint(20) NOT NULL AUTO_INCREMENT,
+            title varchar(255) NOT NULL,
+            trigger_type varchar(50) NOT NULL DEFAULT 'welcome',
+            delay_days int(11) NOT NULL DEFAULT 0,
+            subject varchar(500) NOT NULL,
+            content text NOT NULL,
+            segment_id bigint(20) DEFAULT 0,
+            status varchar(20) DEFAULT 'active',
+            created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY  (id),
+            KEY trigger_type (trigger_type),
+            KEY status (status)
+        ) $charset_collate;";
+
+        $sql_queue = "CREATE TABLE $table_queue (
+            id bigint(20) NOT NULL AUTO_INCREMENT,
+            responder_id bigint(20) NOT NULL,
+            subscriber_id bigint(20) NOT NULL,
+            scheduled_at datetime NOT NULL,
+            sent_at datetime DEFAULT NULL,
+            created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY  (id),
+            KEY responder_id (responder_id),
+            KEY subscriber_id (subscriber_id),
+            KEY scheduled_at (scheduled_at)
+        ) $charset_collate;";
+
+        require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+        dbDelta($sql_responders);
+        dbDelta($sql_queue);
+
+        // Schedule cron if not already scheduled
+        if (!wp_next_scheduled('lattice_mail_process_responder_queue')) {
+            wp_schedule_event(time(), 'every_5_minutes', 'lattice_mail_process_responder_queue');
         }
 
         update_option('lattice_mail_version', LATTICE_MAIL_VERSION);

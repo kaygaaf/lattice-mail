@@ -24,13 +24,14 @@ class Lattice_Mail_Campaign {
         $this->table_recipients = $GLOBALS['wpdb']->prefix . 'lattice_mail_campaign_recipients';
     }
 
-    public function create($subject, $content, $status = 'draft', $segment_id = 0) {
+    public function create($subject, $content, $status = 'draft', $segment_id = 0, $preview_text = '', $template_slug = 'default') {
         global $wpdb;
 
         $result = $wpdb->insert(
             $this->table,
             [
                 'subject' => $subject,
+                'preview_text' => $preview_text,
                 'content' => $content,
                 'status' => $status,
                 'segment_id' => (int) $segment_id,
@@ -45,13 +46,14 @@ class Lattice_Mail_Campaign {
         return $wpdb->insert_id;
     }
 
-    public function update($id, $subject, $content, $segment_id = 0) {
+    public function update($id, $subject, $content, $segment_id = 0, $preview_text = '') {
         global $wpdb;
 
         $wpdb->update(
             $this->table,
             [
                 'subject' => $subject,
+                'preview_text' => $preview_text,
                 'content' => $content,
                 'segment_id' => (int) $segment_id,
                 'updated_at' => current_time('mysql'),
