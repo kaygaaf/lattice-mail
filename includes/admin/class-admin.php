@@ -806,6 +806,8 @@ class Lattice_Mail_Admin {
         $smtp = Lattice_Mail_SMTP::get_instance();
         $settings = $smtp->get_settings();
 
+        $active_tab = sanitize_key($_GET['tab'] ?? 'general');
+
         if (isset($_POST['lattice_mail_settings_submit']) && wp_verify_nonce($_POST['lattice_mail_settings_nonce'], 'lattice_mail_settings')) {
             $new_settings = [
                 'from_email' => sanitize_email($_POST['from_email'] ?? ''),
@@ -822,10 +824,29 @@ class Lattice_Mail_Admin {
             $settings = $smtp->get_settings();
         }
 
+        if (isset($_POST['lattice_mail_woo_submit']) && wp_verify_nonce($_POST['lattice_mail_woo_nonce'], 'lattice_mail_woo_settings')) {
+            update_option('lattice_mail_woo_subscribe_enabled', sanitize_text_field($_POST['lattice_mail_woo_enabled'] ?? 'no'));
+            update_option('lattice_mail_woo_subscribe_label', sanitize_text_field($_POST['lattice_mail_woo_label'] ?? __('Subscribe to our newsletter', 'lattice-mail')));
+            update_option('lattice_mail_woo_subscribe_checked', sanitize_text_field($_POST['lattice_mail_woo_checked'] ?? 'no'));
+            update_option('lattice_mail_woo_double_optin', sanitize_text_field($_POST['lattice_mail_woo_double_optin'] ?? 'no'));
+            echo '<div class="notice notice-success"><p>' . esc_html__('WooCommerce settings saved.', 'lattice-mail') . '</p></div>';
+        }
+
+        $woo_enabled = get_option('lattice_mail_woo_subscribe_enabled', 'yes');
+        $woo_label = get_option('lattice_mail_woo_subscribe_label', __('Subscribe to our newsletter', 'lattice-mail'));
+        $woo_checked = get_option('lattice_mail_woo_subscribe_checked', 'no');
+        $woo_double_optin = get_option('lattice_mail_woo_double_optin', 'no');
+
         ?>
         <div class="wrap lattice-mail-admin">
             <h1><?php _e('Lattice Mail Settings', 'lattice-mail'); ?></h1>
 
+            <h2 class="nav-tab-wrapper" style="margin-bottom: 20px;">
+                <a href="<?php echo admin_url('admin.php?page=lattice-mail-settings&tab=general'); ?>" class="nav-tab <?php echo $active_tab === 'general' ? 'nav-tab-active' : ''; ?>"><?php _e('General', 'lattice-mail'); ?></a>
+                <a href="<?php echo admin_url('admin.php?page=lattice-mail-settings&tab=woo'); ?>" class="nav-tab <?php echo $active_tab === 'woo' ? 'nav-tab-active' : ''; ?>"><?php _e('WooCommerce', 'lattice-mail'); ?></a>
+            </h2>
+
+            <?php if ($active_tab === 'general'): ?>
             <form method="post" style="max-width: 600px;">
                 <h2><?php _e('General', 'lattice-mail'); ?></h2>
                 <table class="form-table">
@@ -890,6 +911,52 @@ class Lattice_Mail_Admin {
                     });
                 });
             </script>
+            <?php elseif ($active_tab === 'woo'): ?>
+            <form method="post" style="max-width: 600px;">
+                <h2><?php _e('WooCommerce Checkout Subscription', 'lattice-mail'); ?></h2>
+                <p><?php _e('Configure the newsletter subscription checkbox shown at WooCommerce checkout.', 'lattice-mail'); ?></p>
+                <table class="form-table">
+                    <tr>
+                        <th><label for="lattice_mail_woo_enabled"><?php _e('Enable Subscription', 'lattice-mail'); ?></label></th>
+                        <td>
+                            <label>
+                                <input type="checkbox" name="lattice_mail_woo_enabled" id="lattice_mail_woo_enabled" value="yes" <?php checked($woo_enabled, 'yes'); ?>>
+                                <?php _e('Show subscription checkbox at WooCommerce checkout', 'lattice-mail'); ?>
+                            </label>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th><label for="lattice_mail_woo_label"><?php _e('Checkbox Label', 'lattice-mail'); ?></label></th>
+                        <td>
+                            <input type="text" name="lattice_mail_woo_label" id="lattice_mail_woo_label" value="<?php echo esc_attr($woo_label); ?>" class="widefat">
+                            <p class="description"><?php _e('The text shown next to the subscription checkbox.', 'lattice-mail'); ?></p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th><label for="lattice_mail_woo_checked"><?php _e('Default State', 'lattice-mail'); ?></label></th>
+                        <td>
+                            <label>
+                                <input type="checkbox" name="lattice_mail_woo_checked" id="lattice_mail_woo_checked" value="yes" <?php checked($woo_checked, 'yes'); ?>>
+                                <?php _e('Pre-check the subscription checkbox by default', 'lattice-mail'); ?>
+                            </label>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th><label for="lattice_mail_woo_double_optin"><?php _e('Double Opt-In', 'lattice-mail'); ?></label></th>
+                        <td>
+                            <label>
+                                <input type="checkbox" name="lattice_mail_woo_double_optin" id="lattice_mail_woo_double_optin" value="yes" <?php checked($woo_double_optin, 'yes'); ?>>
+                                <?php _e('Require email confirmation before subscribing (double opt-in)', 'lattice-mail'); ?>
+                            </label>
+                            <p class="description"><?php _e('When enabled, subscribers will receive a confirmation email and will only be added after they click the confirmation link.', 'lattice-mail'); ?></p>
+                        </td>
+                    </tr>
+                </table>
+
+                <?php wp_nonce_field('lattice_mail_woo_settings', 'lattice_mail_woo_nonce'); ?>
+                <button type="submit" name="lattice_mail_woo_submit" class="button button-primary"><?php _e('Save WooCommerce Settings', 'lattice-mail'); ?></button>
+            </form>
+            <?php endif; ?>
         </div>
         <?php
     }

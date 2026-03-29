@@ -56,7 +56,9 @@ class Lattice_Mail_WooCommerce {
             return;
         }
 
-        $subscriber->add($email, $name, 'woocommerce_checkout');
+        $double_optin = get_option('lattice_mail_woo_double_optin', 'no') === 'yes';
+        $status = $double_optin ? 'pending' : 'active';
+        $subscriber->add($email, $name, 'woocommerce_checkout', $status);
     }
 
     public function shortcode($atts = []) {
