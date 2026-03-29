@@ -117,6 +117,7 @@ final class Lattice_Mail {
             subscriber_id bigint(20) NOT NULL,
             sent_at datetime DEFAULT NULL,
             opened_at datetime DEFAULT NULL,
+            clicked_at datetime DEFAULT NULL,
             PRIMARY KEY  (id),
             KEY campaign_id (campaign_id),
             KEY subscriber_id (subscriber_id)
@@ -157,6 +158,12 @@ final class Lattice_Mail {
         $existing_cols = $wpdb->get_col("DESCRIBE $table_campaigns", 0);
         if (!in_array('segment_id', $existing_cols)) {
             $wpdb->query("ALTER TABLE $table_campaigns ADD COLUMN segment_id bigint(20) DEFAULT 0 AFTER status");
+        }
+
+        // Migrate: add clicked_at to recipients if missing
+        $existing_recip_cols = $wpdb->get_col("DESCRIBE $table_campaign_recipients", 0);
+        if (!in_array('clicked_at', $existing_recip_cols)) {
+            $wpdb->query("ALTER TABLE $table_campaign_recipients ADD COLUMN clicked_at datetime DEFAULT NULL AFTER opened_at");
         }
 
         update_option('lattice_mail_version', LATTICE_MAIL_VERSION);
@@ -220,6 +227,45 @@ final class Lattice_Mail {
             } else {
                 wp_redirect(home_url('?lattice_mail_error=1'));
             }
+            exit;
+        }
+
+        // Open tracking
+        if ($action === 'open' && !empty($_GET['r']) && !empty($_GET['c'])) {
+            $recip_id = (int) $_GET['r'];
+            $campaign_id = (int) $_GET['c'];
+            global $wpdb;
+            $table = $wpdb->prefix . 'lattice_mail_campaign_recipients';
+            $wpdb->update(
+                $table,
+                ['opened_at' => current_time('mysql')],
+                ['id' => $recip_id, 'campaign_id' => $campaign_id]
+            );
+            // Return 1x1 transparent GIF
+            header('Content-Type: image/gif');
+            header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+            header('Pragma: no-cache');
+            header('Expires: Thu, 01 Jan 1970 00:00:00 GMT');
+            echo base64_decode('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7');
+            exit;
+        }
+
+        // Click tracking
+        if ($action === 'click' && !empty($_GET['r']) && !empty($_GET['url'])) {
+            $recip_id = (int) $_GET['r'];
+            $campaign_id = (int) $_GET['c'];
+            $target_url = esc_url_raw(rawurldecode($_GET['url']));
+            global $wpdb;
+            $table = $wpdb->prefix . 'lattice_mail_campaign_recipients';
+            $wpdb->update(
+                $table,
+                [
+                    'opened_at' => current_time('mysql'),
+                    'clicked_at' => current_time('mysql'),
+                ],
+                ['id' => $recip_id, 'campaign_id' => $campaign_id]
+            );
+            wp_redirect($target_url);
             exit;
         }
     }

@@ -129,18 +129,47 @@ class Lattice_Mail_Campaign {
             $unsub_url = home_url("?lattice_mail_action=unsubscribe&token={$unsub_token}");
 
             $email_content = $campaign->content;
+
+            // Insert into DB first to get the recipient ID
+            $recip_id = $wpdb->insert($this->table_recipients, [
+                'campaign_id' => $id,
+                'subscriber_id' => $sub->id,
+                'sent_at' => current_time('mysql'),
+            ]);
+            $recipient_record_id = $wpdb->insert_id;
+
+            // Build open tracking pixel
+            $open_url = home_url("?lattice_mail_action=open&r={$recipient_record_id}&c={$id}");
+
+            // Rewrite all links for click tracking (except mailto: and tel:)
+            $email_content = preg_replace_callback(
+                '/(<a\s+[^>]*href=["\'])([^"\']+)(["\'][^>]*>)/i',
+                function($matches) use ($recipient_record_id, $id) {
+                    $original_url = $matches[2];
+                    // Skip javascript:, mailto:, tel:, and anchor links
+                    if (preg_match('/^(javascript:|mailto:|tel:|#)/i', $original_url)) {
+                        return $matches[0];
+                    }
+                    $tracked_url = home_url("?lattice_mail_action=click&r={$recipient_record_id}&c={$id}&url=" . urlencode($original_url));
+                    return $matches[1] . $tracked_url . $matches[3];
+                },
+                $email_content
+            );
+
+            // Unsubscribe link also gets tracked
             $email_content .= "\n\n---\n";
             $email_content .= sprintf('<a href="%s">Unsubscribe</a>', $unsub_url);
+
+            // Add open tracking pixel (1x1 transparent image, hidden)
+            $email_content .= '<img src="' . esc_url($open_url) . '" width="1" height="1" alt="" style="display:none;" />';
 
             $result = $smtp->send($sub->email, $campaign->subject, $email_content);
 
             if (!is_wp_error($result)) {
-                $wpdb->insert($this->table_recipients, [
-                    'campaign_id' => $id,
-                    'subscriber_id' => $sub->id,
-                    'sent_at' => current_time('mysql'),
-                ]);
                 $sent++;
+            } else {
+                // Remove the recipient record if send failed
+                $wpdb->delete($this->table_recipients, ['id' => $recipient_record_id]);
             }
         }
 

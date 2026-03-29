@@ -130,17 +130,26 @@ class Lattice_Mail_Admin {
                         <tr>
                             <th><?php _e('Subject', 'lattice-mail'); ?></th>
                             <th><?php _e('Status', 'lattice-mail'); ?></th>
-                            <th><?php _e('Created', 'lattice-mail'); ?></th>
                             <th><?php _e('Sent', 'lattice-mail'); ?></th>
+                            <th><?php _e('Opens', 'lattice-mail'); ?></th>
+                            <th><?php _e('Clicks', 'lattice-mail'); ?></th>
                         </tr>
                     </thead>
                     <tbody>
-                        <?php foreach (array_slice($campaigns, 0, 5) as $c): ?>
+                        <?php
+                        global $wpdb;
+                        $recip_table = $wpdb->prefix . 'lattice_mail_campaign_recipients';
+                        foreach (array_slice($campaigns, 0, 5) as $c):
+                            $total = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$recip_table} WHERE campaign_id = %d", $c->id));
+                            $opened = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$recip_table} WHERE campaign_id = %d AND opened_at IS NOT NULL", $c->id));
+                            $clicked = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$recip_table} WHERE campaign_id = %d AND clicked_at IS NOT NULL", $c->id));
+                        ?>
                             <tr>
                                 <td><?php echo esc_html($c->subject); ?></td>
                                 <td><span class="status-<?php echo esc_attr($c->status); ?>"><?php echo esc_html($c->status); ?></span></td>
-                                <td><?php echo esc_html($c->created_at); ?></td>
                                 <td><?php echo $c->sent_at ? esc_html($c->sent_at) : '—'; ?></td>
+                                <td><?php echo $total > 0 ? esc_html("{$opened} / {$total}") . ' (' . round($opened / $total * 100) . '%)' : '—'; ?></td>
+                                <td><?php echo $total > 0 ? esc_html("{$clicked} / {$total}") . ' (' . round($clicked / $total * 100) . '%)' : '—'; ?></td>
                             </tr>
                         <?php endforeach; ?>
                     </tbody>
@@ -407,17 +416,28 @@ class Lattice_Mail_Admin {
                     <tr>
                         <th><?php _e('Subject', 'lattice-mail'); ?></th>
                         <th><?php _e('Status', 'lattice-mail'); ?></th>
+                        <th><?php _e('Opens', 'lattice-mail'); ?></th>
+                        <th><?php _e('Clicks', 'lattice-mail'); ?></th>
                         <th><?php _e('Actions', 'lattice-mail'); ?></th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php if (empty($campaigns)): ?>
-                        <tr><td colspan="3"><?php _e('No campaigns yet.', 'lattice-mail'); ?></td></tr>
+                        <tr><td colspan="5"><?php _e('No campaigns yet.', 'lattice-mail'); ?></td></tr>
                     <?php else: ?>
-                        <?php foreach ($campaigns as $c): ?>
+                        <?php
+                        global $wpdb;
+                        $recip_table = $wpdb->prefix . 'lattice_mail_campaign_recipients';
+                        foreach ($campaigns as $c):
+                            $total = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$recip_table} WHERE campaign_id = %d", $c->id));
+                            $opened = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$recip_table} WHERE campaign_id = %d AND opened_at IS NOT NULL", $c->id));
+                            $clicked = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$recip_table} WHERE campaign_id = %d AND clicked_at IS NOT NULL", $c->id));
+                        ?>
                             <tr>
                                 <td><?php echo esc_html($c->subject); ?></td>
                                 <td><span class="status-<?php echo esc_attr($c->status); ?>"><?php echo esc_html($c->status); ?></span></td>
+                                <td><?php echo $total > 0 ? esc_html("{$opened} ({$total})") : '—'; ?></td>
+                                <td><?php echo $total > 0 ? esc_html("{$clicked} ({$total})") : '—'; ?></td>
                                 <td>
                                     <?php if ($c->status === 'draft'): ?>
                                         <form method="post" style="display:inline;">
@@ -426,7 +446,7 @@ class Lattice_Mail_Admin {
                                             <button type="submit" name="lattice_mail_send_submit" class="button button-primary"><?php _e('Send', 'lattice-mail'); ?></button>
                                         </form>
                                     <?php else: ?>
-                                        <?php _e('Sent', 'lattice-mail'); ?> — <?php echo esc_html($c->sent_at); ?>
+                                        <?php echo esc_html($c->sent_at); ?>
                                     <?php endif; ?>
                                 </td>
                             </tr>
