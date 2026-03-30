@@ -22,11 +22,25 @@ class Lattice_Mail_Subscriber {
         $this->table = $GLOBALS['wpdb']->prefix . 'lattice_mail_subscribers';
     }
 
-    public function add($email, $name = '', $source = 'form') {
+    public function add($email, $name = '', $source = 'form', $status = 'pending') {
         global $wpdb;
 
         if ($this->exists($email)) {
-            return new WP_Error('already_exists', __('This email is already subscribed.', 'lattice-mail'));
+            // If existing subscriber is unsubscribed, reactivate them (still needs confirm if double opt-in).
+            $existing = $wpdb->get_row($wpdb->prepare(
+                "SELECT id, status FROM {$this->table} WHERE email = %s",
+                $email
+            ));
+            if ($existing && $existing->status === 'unsubscribed') {
+                if ($status === 'active') {
+                    $wpdb->update($this->table, ['status' => 'active', 'updated_at' => current_time('mysql')], ['id' => $existing->id]);
+                    return $existing->id;
+                }
+                // For pending re-confirmation, delete old and re-add.
+                $wpdb->delete($this->table, ['id' => $existing->id]);
+            } else {
+                return new WP_Error('already_exists', __('This email is already subscribed.', 'lattice-mail'));
+            }
         }
 
         $confirm_token = wp_generate_uuid4();
@@ -37,7 +51,7 @@ class Lattice_Mail_Subscriber {
                 'email' => $email,
                 'name' => $name,
                 'source' => $source,
-                'status' => 'pending',
+                'status' => $status,
                 'created_at' => current_time('mysql'),
             ]
         );
@@ -48,9 +62,10 @@ class Lattice_Mail_Subscriber {
 
         $subscriber_id = $wpdb->insert_id;
 
-        update_option("lattice_mail_confirm_{$subscriber_id}", $confirm_token, false);
-
-        $this->send_confirmation_email($subscriber_id, $email, $name, $confirm_token);
+        if ($status === 'pending') {
+            update_option("lattice_mail_confirm_{$subscriber_id}", $confirm_token, false);
+            $this->send_confirmation_email($subscriber_id, $email, $name, $confirm_token);
+        }
 
         return $subscriber_id;
     }

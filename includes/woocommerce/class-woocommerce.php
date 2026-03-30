@@ -48,17 +48,18 @@ class Lattice_Mail_WooCommerce {
 
         $order = wc_get_order($order_id);
         $email = $order->get_billing_email();
-        $name = $order->get_billing_first_name() . ' ' . $order->get_billing_last_name();
+        $name = trim($order->get_billing_first_name() . ' ' . $order->get_billing_last_name());
 
         $subscriber = Lattice_Mail_Subscriber::get_instance();
 
-        if ($subscriber->exists($email)) {
-            return;
-        }
-
         $double_optin = get_option('lattice_mail_woo_double_optin', 'no') === 'yes';
         $status = $double_optin ? 'pending' : 'active';
-        $subscriber->add($email, $name, 'woocommerce_checkout', $status);
+        $result = $subscriber->add($email, $name, 'woocommerce_checkout', $status);
+
+        if (is_wp_error($result)) {
+            $logger = wc_get_logger();
+            $logger->error('[Lattice Mail] WooCommerce subscription failed: ' . $result->get_error_message(), ['source' => 'lattice-mail']);
+        }
     }
 
     public function shortcode($atts = []) {

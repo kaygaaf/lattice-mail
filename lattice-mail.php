@@ -255,7 +255,7 @@ final class Lattice_Mail {
             wp_send_json_error(['message' => $result->get_error_message()]);
         }
 
-        wp_send_json_success(['message' => __('Successfully subscribed!', 'lattice-mail')]);
+        wp_send_json_success(['message' => __('Check your email to confirm your subscription!', 'lattice-mail'), 'pending' => true]);
     }
 
     public function ajax_test_email() {
