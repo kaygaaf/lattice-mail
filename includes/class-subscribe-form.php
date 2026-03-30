@@ -28,6 +28,9 @@ class Lattice_Mail_Subscribe_Form {
             'button_text' => __('Subscribe', 'lattice-mail'),
         ], $atts);
 
+        // Check double opt-in setting
+        $double_optin = get_option('lattice_mail_woo_double_optin', 'no') === 'yes';
+
         ob_start();
         ?>
         <div class="lattice-mail-form-wrapper">

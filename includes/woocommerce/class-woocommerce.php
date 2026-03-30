@@ -41,12 +41,20 @@ class Lattice_Mail_WooCommerce {
     }
 
     public function subscribe_from_order($order_id) {
+        if (!class_exists('WooCommerce')) {
+            return;
+        }
+
         $subscribed = get_post_meta($order_id, '_lattice_mail_subscribed', true);
         if ($subscribed !== '1') {
             return;
         }
 
         $order = wc_get_order($order_id);
+        if (!$order) {
+            return;
+        }
+
         $email = $order->get_billing_email();
         $name = trim($order->get_billing_first_name() . ' ' . $order->get_billing_last_name());
 

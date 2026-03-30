@@ -249,13 +249,20 @@ final class Lattice_Mail {
         }
 
         $subscriber = Lattice_Mail_Subscriber::get_instance();
-        $result = $subscriber->add($email, $name);
+
+        $double_optin = get_option('lattice_mail_woo_double_optin', 'no') === 'yes';
+        $status = $double_optin ? 'pending' : 'active';
+
+        $result = $subscriber->add($email, $name, 'form', $status);
 
         if (is_wp_error($result)) {
             wp_send_json_error(['message' => $result->get_error_message()]);
         }
 
-        wp_send_json_success(['message' => __('Check your email to confirm your subscription!', 'lattice-mail'), 'pending' => true]);
+        $message = $status === 'pending'
+            ? __('Check your email to confirm your subscription!', 'lattice-mail')
+            : __('You are now subscribed!', 'lattice-mail');
+        wp_send_json_success(['message' => $message, 'pending' => $status === 'pending']);
     }
 
     public function ajax_test_email() {
