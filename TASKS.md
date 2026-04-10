@@ -24,7 +24,7 @@ Everything must be committed to git. If you create a new file, immediately `git 
 - Test on: wordpress-test.kayorama.nl
 
 ## Done ✅
-- (None yet)
+- **Core Email Marketing Plugin** (2026-04-10) — Full WooCommerce email marketing with subscriber management, campaigns, auto-responders, segmentation, SMTP wizard, and subscribe forms.
 
 ### GROWTH OPPORTUNITIES
 
