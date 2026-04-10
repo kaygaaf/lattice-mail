@@ -9,6 +9,61 @@ class Lattice_Mail_Admin {
     public function __construct() {
         add_action('admin_menu', [$this, 'add_menu_pages']);
         add_action('admin_enqueue_scripts', [$this, 'enqueue_assets']);
+        add_action('wp_ajax_lattice_mail_test_smtp_connection', [$this, 'ajax_test_smtp_connection']);
+    }
+
+    public function ajax_test_smtp_connection() {
+        check_ajax_referer('lattice_mail_test_smtp', 'nonce');
+
+        $smtp = Lattice_Mail_SMTP::get_instance();
+
+        // Use provided test email or fall back to admin email
+        $test_email = sanitize_email($_POST['test_email'] ?? get_option('admin_email'));
+
+        if (empty($_POST['smtp_host']) || empty($_POST['smtp_port'])) {
+            wp_send_json_error(['message' => __('SMTP host and port are required.', 'lattice-mail')]);
+        }
+
+        $test_settings = [
+            'smtp_host' => sanitize_text_field($_POST['smtp_host']),
+            'smtp_port' => (int) $_POST['smtp_port'],
+            'smtp_user' => sanitize_text_field($_POST['smtp_user'] ?? ''),
+            'smtp_pass' => sanitize_text_field($_POST['smtp_pass'] ?? ''),
+            'smtp_secure' => sanitize_text_field($_POST['smtp_secure'] ?? 'tls'),
+            'from_email' => sanitize_email($_POST['from_email'] ?? get_option('admin_email')),
+            'from_name' => sanitize_text_field($_POST['from_name'] ?? get_bloginfo('name')),
+        ];
+
+        // Build a temporary PHPMailer instance to test
+        require_once ABSPATH . WPINC . '/PHPMailer/PHPMailer.php';
+        require_once ABSPATH . WPINC . '/PHPMailer/SMTP.php';
+        require_once ABSPATH . WPINC . '/PHPMailer/Exception.php';
+
+        $mail = new PHPMailer\PHPMailer\PHPMailer(true);
+
+        try {
+            $mail->isSMTP();
+            $mail->Host = $test_settings['smtp_host'];
+            $mail->SMTPAuth = !empty($test_settings['smtp_user']);
+            $mail->Username = $test_settings['smtp_user'];
+            $mail->Password = $test_settings['smtp_pass'];
+            $mail->SMTPSecure = $test_settings['smtp_secure'] === 'ssl' ? 'ssl' : 'tls';
+            $mail->Port = (int) $test_settings['smtp_port'];
+            $mail->CharSet = 'UTF-8';
+            $mail->Timeout = 15;
+
+            $mail->setFrom($test_settings['from_email'], $test_settings['from_name']);
+            $mail->addAddress($test_email);
+            $mail->Subject = __('Lattice Mail SMTP Test', 'lattice-mail');
+            $mail->Body = '<p>' . __('This is a test email from Lattice Mail plugin.', 'lattice-mail') . '</p>' .
+                '<p>' . sprintf(__('Sent at: %s', 'lattice-mail'), current_time('Y-m-d H:i:s')) . '</p>';
+
+            $mail->send();
+            wp_send_json_success(['message' => sprintf(__('Test email sent successfully to %s!', 'lattice-mail'), $test_email)]);
+        } catch (Exception $e) {
+            $human_msg = Lattice_Mail_SMTP::human_readable_smtp_error($e);
+            wp_send_json_error(['message' => $human_msg]);
+        }
     }
 
     public function add_menu_pages() {
@@ -818,6 +873,7 @@ class Lattice_Mail_Admin {
                 'smtp_user' => sanitize_text_field($_POST['smtp_user'] ?? ''),
                 'smtp_pass' => sanitize_text_field($_POST['smtp_pass'] ?? ''),
                 'smtp_secure' => sanitize_text_field($_POST['smtp_secure'] ?? 'tls'),
+                'smtp_provider' => sanitize_text_field($_POST['smtp_provider'] ?? 'other'),
             ];
             $smtp->save_settings($new_settings);
             echo '<div class="notice notice-success"><p>' . esc_html__('Settings saved.', 'lattice-mail') . '</p></div>';
@@ -848,18 +904,6 @@ class Lattice_Mail_Admin {
 
             <?php if ($active_tab === 'general'): ?>
             <form method="post" style="max-width: 600px;">
-                <h2><?php _e('General', 'lattice-mail'); ?></h2>
-                <table class="form-table">
-                    <tr>
-                        <th><label for="from_email"><?php _e('From Email', 'lattice-mail'); ?></label></th>
-                        <td><input type="email" name="from_email" id="from_email" value="<?php echo esc_attr($settings['from_email']); ?>" class="widefat"></td>
-                    </tr>
-                    <tr>
-                        <th><label for="from_name"><?php _e('From Name', 'lattice-mail'); ?></label></th>
-                        <td><input type="text" name="from_name" id="from_name" value="<?php echo esc_attr($settings['from_name']); ?>" class="widefat"></td>
-                    </tr>
-                </table>
-
                 <h2><?php _e('Mailer', 'lattice-mail'); ?></h2>
                 <table class="form-table">
                     <tr>
@@ -872,146 +916,278 @@ class Lattice_Mail_Admin {
                 </table>
 
                 <div id="smtp-settings" style="<?php echo $settings['mailer'] === 'smtp' ? '' : 'display:none;'; ?>">
-                    <h2><?php _e('SMTP Settings', 'lattice-mail'); ?></h2>
-                    <table class="form-table">
-                        <tr>
-                            <th><label for="smtp_host"><?php _e('SMTP Host', 'lattice-mail'); ?></label></th>
-                            <td><input type="text" name="smtp_host" id="smtp_host" value="<?php echo esc_attr($settings['smtp_host']); ?>" class="widefat"></td>
-                        </tr>
-                        <tr>
-                            <th><label for="smtp_port"><?php _e('SMTP Port', 'lattice-mail'); ?></label></th>
-                            <td><input type="number" name="smtp_port" id="smtp_port" value="<?php echo esc_attr($settings['smtp_port']); ?>" class="widefat"></td>
-                        </tr>
-                        <tr>
-                            <th><label for="smtp_user"><?php _e('Username', 'lattice-mail'); ?></label></th>
-                            <td><input type="text" name="smtp_user" id="smtp_user" value="<?php echo esc_attr($settings['smtp_user']); ?>" class="widefat"></td>
-                        </tr>
-                        <tr>
-                            <th><label for="smtp_pass"><?php _e('Password', 'lattice-mail'); ?></label></th>
-                            <td><input type="password" name="smtp_pass" id="smtp_pass" value="<?php echo esc_attr($settings['smtp_pass']); ?>" class="widefat"></td>
-                        </tr>
-                        <tr>
-                            <th><?php _e('Encryption', 'lattice-mail'); ?></th>
-                            <td>
-                                <label><input type="radio" name="smtp_secure" value="tls" <?php checked($settings['smtp_secure'], 'tls'); ?>> TLS</label><br>
-                                <label><input type="radio" name="smtp_secure" value="ssl" <?php checked($settings['smtp_secure'], 'ssl'); ?>> SSL</label>
-                            </td>
-                        </tr>
-                        <tr>
-                            <th><?php _e('Test SMTP', 'lattice-mail'); ?></th>
-                            <td>
-                                <button type="button" id="lattice-mail-test-smtp-btn" class="button button-secondary">
-                                    <?php _e('Send Test Email', 'lattice-mail'); ?>
-                                </button>
-                                <p class="description"><?php _e('Send a test email to verify your SMTP settings are correct.', 'lattice-mail'); ?></p>
-                            </td>
-                        </tr>
-                    </table>
-                </div>
+                    <?php
+                    $presets = $smtp->get_provider_presets();
+                    $current_provider = $settings['smtp_provider'] ?? 'other';
+                    ?>
 
-                <?php wp_nonce_field('lattice_mail_settings', 'lattice_mail_settings_nonce'); ?>
-                <button type="submit" name="lattice_mail_settings_submit" class="button button-primary"><?php _e('Save Settings', 'lattice-mail'); ?></button>
-            </form>
+                    <h2><?php _e('SMTP Setup Wizard', 'lattice-mail'); ?></h2>
 
-            <!-- Test Email Modal -->
-            <div id="lattice-mail-test-modal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; z-index:100000; background:rgba(0,0,0,0.5);">
-                <div style="background:#fff; max-width:500px; max-height:80vh; margin:100px auto; overflow:auto; border-radius:8px; position:relative;">
-                    <div style="padding:20px; background:#f0f0f0; border-bottom:1px solid #ddd; display:flex; justify-content:space-between; align-items:center;">
-                        <h2 style="margin:0; font-size:18px;"><?php _e('Send Test Email', 'lattice-mail'); ?></h2>
-                        <button type="button" id="lattice-mail-test-modal-close" style="background:none; border:none; font-size:24px; cursor:pointer; line-height:1;">&times;</button>
-                    </div>
-                    <div style="padding:20px;">
-                        <p><?php _e('Enter the email address where you want to receive the test email:', 'lattice-mail'); ?></p>
-                        <input type="email" id="lattice-mail-test-email" class="widefat" value="<?php echo esc_attr($settings['from_email']); ?>" placeholder="test@example.com">
-                        <div id="lattice-mail-test-result" style="margin-top:15px; display:none;"></div>
-                        <div style="margin-top:15px; text-align:right;">
-                            <button type="button" id="lattice-mail-test-send-btn" class="button button-primary"><?php _e('Send Test Email', 'lattice-mail'); ?></button>
+                    <!-- Step Indicator -->
+                    <div class="lattice-wizard-steps" id="lattice-wizard-steps">
+                        <div class="lattice-wizard-step active" data-step="1">
+                            <span class="lattice-step-number">1</span>
+                            <span class="lattice-step-label"><?php _e('Choose Provider', 'lattice-mail'); ?></span>
+                        </div>
+                        <div class="lattice-wizard-step-sep">→</div>
+                        <div class="lattice-wizard-step" data-step="2">
+                            <span class="lattice-step-number">2</span>
+                            <span class="lattice-step-label"><?php _e('Enter Credentials', 'lattice-mail'); ?></span>
+                        </div>
+                        <div class="lattice-wizard-step-sep">→</div>
+                        <div class="lattice-wizard-step" data-step="3">
+                            <span class="lattice-step-number">3</span>
+                            <span class="lattice-step-label"><?php _e('Test &amp; Save', 'lattice-mail'); ?></span>
                         </div>
                     </div>
-                </div>
-            </div>
 
-            <script>
-                document.querySelectorAll('input[name="mailer"]').forEach(function(radio) {
-                    radio.addEventListener('change', function() {
-                        document.getElementById('smtp-settings').style.display = this.value === 'smtp' ? '' : 'none';
-                    });
-                });
+                    <!-- Hidden provider value -->
+                    <input type="hidden" name="smtp_provider" id="smtp_provider" value="<?php echo esc_attr($current_provider); ?>">
 
-                // Test email modal
-                (function() {
-                    var modal = document.getElementById('lattice-mail-test-modal');
-                    var btn = document.getElementById('lattice-mail-test-smtp-btn');
-                    var closeBtn = document.getElementById('lattice-mail-test-modal-close');
-                    var sendBtn = document.getElementById('lattice-mail-test-send-btn');
-                    var emailInput = document.getElementById('lattice-mail-test-email');
-                    var resultDiv = document.getElementById('lattice-mail-test-result');
+                    <!-- STEP 1: Provider Selection -->
+                    <div class="lattice-wizard-panel" id="lattice-step-1">
+                        <p><?php _e('Select your email service provider. Settings will be pre-filled for known providers.', 'lattice-mail'); ?></p>
+                        <div class="lattice-provider-cards">
+                            <?php foreach ($presets as $key => $preset): ?>
+                                <div class="lattice-provider-card <?php echo $current_provider === $key ? 'selected' : ''; ?>"
+                                     data-provider="<?php echo esc_attr($key); ?>"
+                                     data-host="<?php echo esc_attr($preset['host']); ?>"
+                                     data-port="<?php echo esc_attr($preset['port']); ?>"
+                                     data-secure="<?php echo esc_attr($preset['secure']); ?>"
+                                     data-user-label="<?php echo esc_attr($preset['fields']['user']); ?>"
+                                     data-pass-label="<?php echo esc_attr($preset['fields']['pass_label']); ?>"
+                                     data-docs-url="<?php echo esc_attr($preset['docs_url']); ?>">
+                                    <div class="lattice-provider-name"><?php echo esc_html($preset['name']); ?></div>
+                                    <?php if (!empty($preset['docs_url'])): ?>
+                                        <a href="<?php echo esc_url($preset['docs_url']); ?>" target="_blank" rel="noopener noreferrer" class="lattice-provider-docs-link" onclick="event.stopPropagation();">
+                                            <?php _e('How to get credentials', 'lattice-mail'); ?> ↗
+                                        </a>
+                                    <?php endif; ?>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                        <button type="button" class="button button-primary" id="lattice-wizard-next-1" style="margin-top:20px;">
+                            <?php _e('Next: Enter Credentials →', 'lattice-mail'); ?>
+                        </button>
+                    </div>
 
-                    if (!btn || !modal) return;
+                    <!-- STEP 2: Credentials -->
+                    <div class="lattice-wizard-panel" id="lattice-step-2" style="display:none;">
+                        <h3><?php _e('SMTP Credentials', 'lattice-mail'); ?></h3>
+                        <table class="form-table">
+                            <tr>
+                                <th><label for="smtp_host"><?php _e('SMTP Host', 'lattice-mail'); ?></label></th>
+                                <td><input type="text" name="smtp_host" id="smtp_host" value="<?php echo esc_attr($settings['smtp_host']); ?>" class="widefat"></td>
+                            </tr>
+                            <tr>
+                                <th><label for="smtp_port"><?php _e('SMTP Port', 'lattice-mail'); ?></label></th>
+                                <td><input type="number" name="smtp_port" id="smtp_port" value="<?php echo esc_attr($settings['smtp_port']); ?>" class="widefat" style="width:100px;"></td>
+                            </tr>
+                            <tr>
+                                <th><label for="smtp_user"><?php _e('Username', 'lattice-mail'); ?></label></th>
+                                <td><input type="text" name="smtp_user" id="smtp_user" value="<?php echo esc_attr($settings['smtp_user']); ?>" class="widefat" autocomplete="new-password"></td>
+                            </tr>
+                            <tr>
+                                <th><label for="smtp_pass"><?php _e('Password', 'lattice-mail'); ?></label></th>
+                                <td><input type="password" name="smtp_pass" id="smtp_pass" value="<?php echo esc_attr($settings['smtp_pass']); ?>" class="widefat" autocomplete="new-password"></td>
+                            </tr>
+                            <tr>
+                                <th><?php _e('Encryption', 'lattice-mail'); ?></th>
+                                <td>
+                                    <label><input type="radio" name="smtp_secure" value="tls" <?php checked($settings['smtp_secure'], 'tls'); ?>> TLS (port 587)</label><br>
+                                    <label><input type="radio" name="smtp_secure" value="ssl" <?php checked($settings['smtp_secure'], 'ssl'); ?>> SSL (port 465)</label>
+                                </td>
+                            </tr>
+                        </table>
+                        <button type="button" class="button" id="lattice-wizard-prev-2" style="margin-top:10px;">← <?php _e('Back', 'lattice-mail'); ?></button>
+                        <button type="button" class="button button-primary" id="lattice-wizard-next-2" style="margin-top:10px; margin-left:10px;">
+                            <?php _e('Next: Test &amp; Save →', 'lattice-mail'); ?>
+                        </button>
+                    </div>
 
-                    btn.addEventListener('click', function() {
-                        resultDiv.style.display = 'none';
-                        resultDiv.className = '';
-                        resultDiv.innerHTML = '';
-                        modal.style.display = 'block';
-                        emailInput.focus();
-                    });
+                    <!-- STEP 3: Test & Save -->
+                    <div class="lattice-wizard-panel" id="lattice-step-3" style="display:none;">
+                        <h3><?php _e('From Address', 'lattice-mail'); ?></h3>
+                        <table class="form-table">
+                            <tr>
+                                <th><label for="from_email_wizard"><?php _e('From Email', 'lattice-mail'); ?></label></th>
+                                <td><input type="email" name="from_email" id="from_email_wizard" value="<?php echo esc_attr($settings['from_email']); ?>" class="widefat"></td>
+                            </tr>
+                            <tr>
+                                <th><label for="from_name_wizard"><?php _e('From Name', 'lattice-mail'); ?></label></th>
+                                <td><input type="text" name="from_name" id="from_name_wizard" value="<?php echo esc_attr($settings['from_name']); ?>" class="widefat"></td>
+                            </tr>
+                        </table>
 
-                    closeBtn && closeBtn.addEventListener('click', function() {
-                        modal.style.display = 'none';
-                    });
+                        <h3><?php _e('Test Connection', 'lattice-mail'); ?></h3>
+                        <p><?php _e('Send a test email to verify your SMTP settings work correctly.', 'lattice-mail'); ?></p>
+                        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                            <input type="email" id="lattice-test-email" class="widefat" value="<?php echo esc_attr($settings['from_email']); ?>" placeholder="<?php esc_attr_e('test@example.com', 'lattice-mail'); ?>" style="max-width:300px;">
+                            <button type="button" id="lattice-mail-test-smtp-btn" class="button button-secondary">
+                                <?php _e('Send Test Email', 'lattice-mail'); ?>
+                            </button>
+                        </div>
+                        <div id="lattice-mail-test-result" class="lattice-test-result" style="display:none; margin-top:15px;"></div>
 
-                    modal.addEventListener('click', function(e) {
-                        if (e.target === modal) {
-                            modal.style.display = 'none';
-                        }
-                    });
+                        <div style="margin-top:20px;">
+                            <button type="button" class="button" id="lattice-wizard-prev-3">← <?php _e('Back', 'lattice-mail'); ?></button>
+                            <?php wp_nonce_field('lattice_mail_settings', 'lattice_mail_settings_nonce'); ?>
+                            <button type="submit" name="lattice_mail_settings_submit" class="button button-primary" style="margin-left:10px;">
+                                <?php _e('Save Settings', 'lattice-mail'); ?>
+                            </button>
+                        </div>
+                    </div>
 
-                    sendBtn && sendBtn.addEventListener('click', function() {
-                        var testEmail = emailInput.value.trim();
-                        if (!testEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(testEmail)) {
-                            resultDiv.style.display = 'block';
-                            resultDiv.className = 'notice notice-error';
-                            resultDiv.innerHTML = '<p><?php esc_attr_e('Please enter a valid email address.', 'lattice-mail'); ?></p>';
-                            return;
-                        }
+                    <script>
+                    (function() {
+                        'use strict';
 
-                        sendBtn.disabled = true;
-                        sendBtn.textContent = '<?php esc_attr_e('Sending...', 'lattice-mail'); ?>';
-                        resultDiv.style.display = 'none';
+                        // ----- Mailer toggle -----
+                        document.querySelectorAll('input[name="mailer"]').forEach(function(radio) {
+                            radio.addEventListener('change', function() {
+                                document.getElementById('smtp-settings').style.display = this.value === 'smtp' ? '' : 'none';
+                            });
+                        });
 
-                        var xhr = new XMLHttpRequest();
-                        xhr.open('POST', '<?php echo admin_url('admin-ajax.php'); ?>', true);
-                        xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
-                        xhr.onreadystatechange = function() {
-                            if (xhr.readyState === 4) {
-                                sendBtn.disabled = false;
-                                sendBtn.textContent = '<?php esc_attr_e('Send Test Email', 'lattice-mail'); ?>';
-                                resultDiv.style.display = 'block';
-                                if (xhr.status === 200) {
-                                    try {
-                                        var response = JSON.parse(xhr.responseText);
-                                        if (response.success) {
-                                            resultDiv.className = 'notice notice-success';
-                                            resultDiv.innerHTML = '<p><?php esc_attr_e('Test email sent successfully!', 'lattice-mail'); ?></p>';
-                                        } else {
-                                            resultDiv.className = 'notice notice-error';
-                                            resultDiv.innerHTML = '<p>' + (response.data || '<?php esc_attr_e('Failed to send test email.', 'lattice-mail'); ?>') + '</p>';
-                                        }
-                                    } catch (e) {
-                                        resultDiv.className = 'notice notice-error';
-                                        resultDiv.innerHTML = '<p><?php esc_attr_e('Failed to send test email.', 'lattice-mail'); ?></p>';
-                                    }
-                                } else {
-                                    resultDiv.className = 'notice notice-error';
-                                    resultDiv.innerHTML = '<p><?php esc_attr_e('Request failed. Please try again.', 'lattice-mail'); ?></p>';
+                        // ----- Wizard state -----
+                        var currentStep = 1;
+                        var providerValue = document.getElementById('smtp_provider').value || 'other';
+
+                        function showStep(step) {
+                            document.querySelectorAll('.lattice-wizard-step').forEach(function(el) {
+                                el.classList.remove('active');
+                                if (parseInt(el.getAttribute('data-step')) === step) {
+                                    el.classList.add('active');
                                 }
-                            }
-                        };
-                        xhr.send('action=lattice_mail_test_email&nonce=<?php echo wp_create_nonce('lattice_mail_test_email'); ?>&test_email=' + encodeURIComponent(testEmail));
-                    });
-                })();
-            </script>
+                            });
+                            document.querySelectorAll('.lattice-wizard-panel').forEach(function(panel) {
+                                panel.style.display = 'none';
+                            });
+                            var panel = document.getElementById('lattice-step-' + step);
+                            if (panel) panel.style.display = 'block';
+                            currentStep = step;
+                        }
+
+                        // Step nav buttons
+                        var next1 = document.getElementById('lattice-wizard-next-1');
+                        var next2 = document.getElementById('lattice-wizard-next-2');
+                        var prev2 = document.getElementById('lattice-wizard-prev-2');
+                        var prev3 = document.getElementById('lattice-wizard-prev-3');
+
+                        if (next1) next1.addEventListener('click', function() { showStep(2); });
+                        if (next2) next2.addEventListener('click', function() { showStep(3); });
+                        if (prev2) prev2.addEventListener('click', function() { showStep(1); });
+                        if (prev3) prev3.addEventListener('click', function() { showStep(2); });
+
+                        // Start at the provider's step (if already saved, advance past step 1)
+                        if (providerValue && providerValue !== 'other' && document.querySelector('.lattice-provider-card.selected')) {
+                            // Keep on step 1 for fresh users
+                        }
+
+                        // ----- Provider card selection -----
+                        document.querySelectorAll('.lattice-provider-card').forEach(function(card) {
+                            card.addEventListener('click', function() {
+                                document.querySelectorAll('.lattice-provider-card').forEach(function(c) {
+                                    c.classList.remove('selected');
+                                });
+                                card.classList.add('selected');
+
+                                var provider = card.getAttribute('data-provider');
+                                var host = card.getAttribute('data-host');
+                                var port = card.getAttribute('data-port');
+                                var secure = card.getAttribute('data-secure');
+                                var userLabel = card.getAttribute('data-user-label');
+                                var passLabel = card.getAttribute('data-pass-label');
+
+                                document.getElementById('smtp_provider').value = provider;
+
+                                // Auto-fill fields if they are empty or user selects a preset
+                                var hostField = document.getElementById('smtp_host');
+                                if (!hostField.value || host) hostField.value = host;
+
+                                var portField = document.getElementById('smtp_port');
+                                if (!portField.value || port) portField.value = port;
+
+                                var secureField = document.querySelector('input[name="smtp_secure"][value="' + secure + '"]');
+                                if (secureField) secureField.checked = true;
+
+                                // Update field labels
+                                var userLabelEl = document.querySelector('label[for="smtp_user"]');
+                                if (userLabelEl) userLabelEl.textContent = userLabel;
+
+                                var passLabelEl = document.querySelector('label[for="smtp_pass"]');
+                                if (passLabelEl) passLabelEl.textContent = passLabel;
+                            });
+                        });
+
+                        // ----- Test SMTP AJAX -----
+                        var testBtn = document.getElementById('lattice-mail-test-smtp-btn');
+                        var testResult = document.getElementById('lattice-mail-test-result');
+                        var testEmailInput = document.getElementById('lattice-test-email');
+
+                        if (testBtn) {
+                            testBtn.addEventListener('click', function() {
+                                var testEmail = testEmailInput.value.trim();
+                                if (!testEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(testEmail)) {
+                                    testResult.style.display = 'block';
+                                    testResult.className = 'lattice-test-result error';
+                                    testResult.innerHTML = '<strong><?php esc_attr_e('Error:', 'lattice-mail'); ?></strong> <?php esc_attr_e('Please enter a valid email address.', 'lattice-mail'); ?>';
+                                    return;
+                                }
+
+                                testBtn.disabled = true;
+                                testBtn.textContent = '<?php esc_attr_e('Sending…', 'lattice-mail'); ?>';
+                                testResult.style.display = 'none';
+
+                                var xhr = new XMLHttpRequest();
+                                xhr.open('POST', '<?php echo admin_url('admin-ajax.php'); ?>', true);
+                                xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+                                xhr.onreadystatechange = function() {
+                                    if (xhr.readyState === 4) {
+                                        testBtn.disabled = false;
+                                        testBtn.textContent = '<?php esc_attr_e('Send Test Email', 'lattice-mail'); ?>';
+                                        testResult.style.display = 'block';
+                                        if (xhr.status === 200) {
+                                            try {
+                                                var resp = JSON.parse(xhr.responseText);
+                                                if (resp.success) {
+                                                    testResult.className = 'lattice-test-result success';
+                                                    testResult.innerHTML = '✅ ' + resp.data.message;
+                                                } else {
+                                                    testResult.className = 'lattice-test-result error';
+                                                    testResult.innerHTML = '❌ ' + (resp.data.message || resp.data || '<?php esc_attr_e('An error occurred.', 'lattice-mail'); ?>');
+                                                }
+                                            } catch (e) {
+                                                testResult.className = 'lattice-test-result error';
+                                                testResult.innerHTML = '❌ <?php esc_attr_e('Failed to parse server response.', 'lattice-mail'); ?>';
+                                            }
+                                        } else {
+                                            testResult.className = 'lattice-test-result error';
+                                            testResult.innerHTML = '❌ <?php esc_attr_e('Request failed. Please try again.', 'lattice-mail'); ?>';
+                                        }
+                                    }
+                                };
+
+                                var params = [
+                                    'action=lattice_mail_test_smtp_connection',
+                                    'nonce=<?php echo wp_create_nonce('lattice_mail_test_smtp'); ?>',
+                                    'test_email=' + encodeURIComponent(testEmail),
+                                    'smtp_host=' + encodeURIComponent(document.getElementById('smtp_host').value),
+                                    'smtp_port=' + encodeURIComponent(document.getElementById('smtp_port').value),
+                                    'smtp_user=' + encodeURIComponent(document.getElementById('smtp_user').value),
+                                    'smtp_pass=' + encodeURIComponent(document.getElementById('smtp_pass').value),
+                                    'smtp_secure=' + encodeURIComponent(document.querySelector('input[name="smtp_secure"]:checked') ? document.querySelector('input[name="smtp_secure"]:checked').value : 'tls'),
+                                    'from_email=' + encodeURIComponent(document.getElementById('from_email_wizard') ? document.getElementById('from_email_wizard').value : ''),
+                                    'from_name=' + encodeURIComponent(document.getElementById('from_name_wizard') ? document.getElementById('from_name_wizard').value : '')
+                                ].join('&');
+
+                                xhr.send(params);
+                            });
+                        }
+                    })();
+                    </script>
+                </div>
+            </form>
             <?php elseif ($active_tab === 'woo'): ?>
             <form method="post" style="max-width: 600px;">
                 <h2><?php _e('WooCommerce Checkout Subscription', 'lattice-mail'); ?></h2>
