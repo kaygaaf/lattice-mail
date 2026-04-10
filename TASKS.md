@@ -25,3 +25,10 @@ Everything must be committed to git. If you create a new file, immediately `git 
 
 ## Done ✅
 - (None yet)
+
+### GROWTH OPPORTUNITIES
+
+**Growth: Add SMTP Setup Wizard** ✅ DONE (2026-04-10)
+**Problem:** README says to configure SMTP but provides no in-plugin guidance. User must manually find their SMTP credentials and understand TLS/SSL port settings.
+**Solution:** Added 3-step SMTP wizard: (1) Choose Provider — card selector with presets for SendGrid, Amazon SES, MailCow, Mailgun, Postmark, Other/Manual; (2) Enter Credentials — dynamic field labels based on provider (API Key, Access Key ID, etc.); (3) Test & Save — real SMTP connection test via PHPMailer with human-readable error messages. Provider presets auto-fill host/port/encryption. Added to class-smtp.php and class-admin.php.
+**Impact:** High
