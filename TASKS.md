@@ -50,3 +50,13 @@ Everything must be committed to git. If you create a new file, immediately `git 
 **Problem:** README says to configure SMTP but provides no in-plugin guidance. User must manually find their SMTP credentials and understand TLS/SSL port settings.
 **Solution:** Added 3-step SMTP wizard: (1) Choose Provider — card selector with presets for SendGrid, Amazon SES, MailCow, Mailgun, Postmark, Other/Manual; (2) Enter Credentials — dynamic field labels based on provider (API Key, Access Key ID, etc.); (3) Test & Save — real SMTP connection test via PHPMailer with human-readable error messages. Provider presets auto-fill host/port/encryption. Added to class-smtp.php and class-admin.php.
 **Impact:** High
+
+**Growth: Add First-Campaign Getting Started Guide**
+**Problem:** Tested admin has Lattice Mail with General and WooCommerce tabs, but no dashboard or guide explaining how to create the first campaign. User must figure out: add subscribers → create campaign → send. No guidance on WooCommerce checkout opt-in integration.
+**Solution:** Add a Getting Started card on the Lattice Mail Dashboard (Lattice Mail > Home). Steps: (1) Add the subscribe form to your site using the widget or [lattice_mail_subscribe] shortcode, (2) Enable WooCommerce checkout opt-in in Settings > WooCommerce tab, (3) Create your first campaign under Campaigns > New. Link to shortcode documentation.
+**Impact:** High
+
+**Growth: WooCommerce Integration Setup Guide in Settings**
+**Problem:** Lattice Mail has a WooCommerce tab in settings, but no onboarding explaining what each WooCommerce integration option does or what the opt-in checkbox looks like to customers. User has to test blindly to understand.
+**Solution:** Add contextual descriptions in the WooCommerce settings tab explaining: what "Add opt-in checkbox at checkout" does, what the default label is, and how to customize it. Show a small preview mockup of what the checkout checkbox looks like. Add a "Preview Checkout" link if possible.
+**Impact:** Medium
