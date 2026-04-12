@@ -67,3 +67,13 @@ Everything must be committed to git. If you create a new file, immediately `git 
 **Problem:** Lattice Mail has a WooCommerce tab in settings, but no onboarding explaining what each WooCommerce integration option does or what the opt-in checkbox looks like to customers. User has to test blindly to understand.
 **Solution:** Add contextual descriptions in the WooCommerce settings tab explaining: what "Add opt-in checkbox at checkout" does, what the default label is, and how to customize it. Show a small preview mockup of what the checkout checkbox looks like. Add a "Preview Checkout" link if possible.
 **Impact:** Medium
+
+**Growth: Add Checkout Opt-in Checkbox Live Preview**
+Problem: Even with descriptive text in settings, users still can't see what the checkout opt-in checkbox actually looks like to customers without saving and testing checkout manually. The "preview mockup" mentioned in the existing opportunity is only static text.
+Solution: Add a live preview panel in the WooCommerce settings tab that renders the actual checkbox HTML as it would appear in checkout. Use JavaScript to update the preview in real-time as the label text is edited. Include a "Open Checkout Preview" button to open the store checkout in a new tab with the opt-in visible.
+Impact: Medium
+
+**Growth: Add Auto-Responder Active/Inactive Visual Status**
+Problem: Auto-responders are listed in the admin but there's no visual indicator showing which ones are actively running vs paused/draft. User must check each responder's schedule to understand current status.
+Solution: Add a status badge (Active / Paused / Draft) column to the auto-responders list table. Use color coding: green for active, yellow for paused, gray for draft. Add bulk toggle to activate/deactivate multiple responders at once.
+Impact: Low
