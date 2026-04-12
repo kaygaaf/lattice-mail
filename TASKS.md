@@ -42,6 +42,13 @@ Everything must be committed to git. If you create a new file, immediately `git 
 **Impact:** Win-back typically has 5-15% conversion — highest ROI email flow. Low effort to add on top of drip campaigns.
 **Effort:** Low (add-on to drip feature)
 
+### Lattice Mail: WooCommerce Abandoned Cart Recovery
+**Plugin:** Lattice Mail
+**Problem:** WooCommerce stores lose 60-80% of carts at checkout. Subscribify subscription products have high cart values — losing even 10 carts per week is significant revenue leakage. Existing tools (Klaviyo, Mailchimp) are expensive and require leaving WordPress.
+**Solution:** Track cart state via WooCommerce `add_to_cart` hook, storing cart snapshot in DB when user navigates away (before payment). Email capture from checkout fields. Abandoned cart sequence builder: configurable delay (30min, 1hr, 24hr, 3days) with email templates. Personalized product images and cart contents in email. Unique recovery link to restore cart. Sync with Subscribify for subscription product carts. Dashboard showing recovered revenue, conversion rate per sequence. Works alongside existing Lattice Mail subscriber system.
+**Impact:** Direct revenue recovery. Abandoned cart emails typically recover 3-8% of lost carts. Premium feature with high perceived value. Essential for Subscribify users selling subscription products.
+**Effort:** Medium–High
+
 ---
 
 ### GROWTH OPPORTUNITIES
