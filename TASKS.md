@@ -85,3 +85,13 @@ Impact: Medium
 Problem: Auto-responders are listed in the admin but there's no visual indicator showing which ones are actively running vs paused/draft. User must check each responder's schedule to understand current status.
 Solution: Add a status badge (Active / Paused / Draft) column to the auto-responders list table. Use color coding: green for active, yellow for paused, gray for draft. Add bulk toggle to activate/deactivate multiple responders at once.
 Impact: Low
+
+**Growth: Add Labels to Dashboard Stat Numbers**
+Problem: The Lattice Mail Dashboard shows large "0" stat headings for Subscribers, Campaigns, and other metrics with zero visual context. The numbers appear completely unlabeled — a user seeing this for the first time has no idea what each number represents. This is a critical first-impression failure in the admin UI.
+Solution: Add descriptive labels below each large number (e.g., "Total Subscribers", "Active Campaigns", "Sent This Month") or above it. Use a card layout: [label above] [big number] [subtext like "↑ 0 this week"]. Make each stat card clickable to the relevant section (click subscribers → subscriber list).
+Impact: High
+
+**Growth: Add Documentation Links to Lattice Mail Menu Items**
+Problem: Each Lattice Mail admin section (Subscribers, Segments, Campaigns, Auto-Responders, Settings) has no inline help or "Learn more" links. A new user encountering a feature for the first time (e.g., Segments) has no guidance on what it does or how to use it.
+Solution: Add a help icon (?) next to each section heading in the Lattice Mail admin that links to relevant documentation on latticeplugins.com. Add contextual help_tip气泡 on individual settings fields explaining what each option does.
+Impact: Medium
