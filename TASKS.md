@@ -35,6 +35,14 @@ Everything must be committed to git. If you create a new file, immediately `git 
 **Impact:** Revenue driver — abandoned cart sequences recover 3-5% of sales. Welcome sequences increase second purchase rate. Medium effort, high revenue potential.
 **Effort:** Medium–High
 
+### Lattice Mail: Post-Purchase Review Request Sequence
+**Plugin:** Lattice Mail
+**Problem:** aipick.nl reviews AI tools and needs social proof — reviews, testimonials, user ratings. Currently there's no automated way to request reviews from purchasers or subscribers. Manual outreach is time-consuming and inconsistent. AI tool comparison posts with genuine user reviews rank better and convert more readers into affiliate clicks.
+**Solution:** Add a post-purchase review trigger in Lattice Mail. Trigger fires X days after order completion (configurable: 3, 7, 14 days). Sends review request email with: product/AI tool name, order reference, direct link to review page (custom URL per product). Personalization tokens: {product_name}, {order_id}, {customer_name}. Include star rating quick-response in email (1-5 clickable links). Review responses stored in WordPress (new `lattice_mail_reviews` table). Show collected reviews in admin dashboard. Optional: auto-publish positive reviews (4-5 stars) to a testimonials page. Integration with Lattice SEO's AI Tool Comparison schema — reviews contribute to aggregate rating.
+**Impact:** Direct revenue impact for aipick.nl — genuine reviews on AI tool comparison pages increase reader trust and affiliate click-through. Review sequence has among the highest ROI of any email flow. Low effort to implement on top of existing Lattice Mail auto-responder framework.
+**Effort:** Low–Medium
+**Priority for aipick.nl:** P1
+
 ### Lattice Mail: Win-Back Campaign for Lapsed Subscribers
 **Plugin:** Lattice Mail
 **Problem:** Churned subscribers drift away silently. No automated outreach to win them back.
