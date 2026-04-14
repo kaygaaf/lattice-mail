@@ -95,3 +95,23 @@ Impact: High
 Problem: Each Lattice Mail admin section (Subscribers, Segments, Campaigns, Auto-Responders, Settings) has no inline help or "Learn more" links. A new user encountering a feature for the first time (e.g., Segments) has no guidance on what it does or how to use it.
 Solution: Add a help icon (?) next to each section heading in the Lattice Mail admin that links to relevant documentation on latticeplugins.com. Add contextual help_tip气泡 on individual settings fields explaining what each option does.
 Impact: Medium
+
+**Growth: Add Label Above Each Stat Number on Dashboard**
+Problem: The Lattice Mail Dashboard shows large "0" stat headings for Subscribers, Campaigns, and other metrics with zero visual context. The numbers appear completely unlabeled — a user seeing this for the first time has no idea what each number represents. This is a critical first-impression failure in the admin UI (e.g., e6="0", e7="0", e8="0", e9="0" — four unlabeled statistics in a row).
+Solution: Add descriptive labels above each large number (e.g., "Total Subscribers", "Active Campaigns", "Sent This Month", "Open Rate") or restructure as stat cards with label above + big number + subtext like "↑ 0 this week". Make each stat card clickable to the relevant section (click "Subscribers" → subscriber list).
+Impact: High
+
+**Growth: Fix Whitespace in Mailer Radio Button Label**
+Problem: The Mailer settings section shows radio button options with a leading space: " WordPress default (wp_mail)" and " SMTP". The space before "WordPress" and "SMTP" appears unintentional and looks like a rendering bug, reducing perceived quality of the admin UI.
+Solution: Trim the string values used for radio button labels in the Mailer section. Ensure consistent formatting: "WordPress default (wp_mail)" and "SMTP" without leading spaces. Review all other form label strings for similar whitespace issues.
+Impact: Low
+
+**Growth: Add "How Subscribers Are Added" Explanation to Subscribers Section**
+Problem: New users don't understand how Lattice Mail adds subscribers. The plugin integrates with WooCommerce checkout (opt-in checkbox), but there's no explanation in the admin UI of where subscribers come from. Users may expect to manually add subscribers or not realize the checkout integration is working.
+Solution: Add a persistent info banner at the top of the Subscribers list page: "Subscribers are added automatically when customers check the opt-in box at WooCommerce checkout. You can also add subscribers manually or import a CSV list." Include links to: WooCommerce checkout settings (to configure the opt-in checkbox label) and the Import tool.
+Impact: Medium
+
+**Growth: Add Visual Campaign Status Indicator to Campaigns List**
+Problem: The Campaigns section lists campaigns but shows no visual indicator of whether a campaign is Draft, Scheduled, Sending, or Sent. User must click into each campaign to determine its current state — an unnecessary friction point for daily email operations.
+Solution: Add a Status column to the Campaigns list table with color-coded badges: Draft (gray), Scheduled (blue), Sending (yellow animated), Sent (green), Failed (red). Add bulk actions to pause/resume scheduled campaigns.
+Impact: Medium
