@@ -142,3 +142,13 @@ Impact: Medium
 Problem: When creating a campaign, users set a scheduled send time but see no preview of when the email will arrive in the subscriber's inbox relative to their local time.
 Solution: Below the schedule datetime picker, show a preview: "Email will be sent: Thursday, April 16 at 10:00 AM (your subscribers' local time zones may vary)". Add timezone indicator showing the server timezone vs selected schedule timezone.
 Impact: Low
+
+---
+
+### GROWTH OPPORTUNITIES (2026-04-16)
+
+**Growth: Add stat card labels to Lattice Mail dashboard**
+Problem: The dashboard shows 3 large stat numbers (e.g., "0", "0", "0") as bare headings with no labels. A new user sees three zeroes with no indication of what each metric represents (Subscribers? Campaigns? Open Rate?). This is a critical clarity failure.
+Solution: Add descriptive labels above or below each stat number. Example: "Total Subscribers", "Active Campaigns", "Avg. Open Rate". Add a small description paragraph below each number.
+Impact: High
+Issue: https://github.com/kaygaaf/lattice-mail/issues/1
