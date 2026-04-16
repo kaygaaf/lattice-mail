@@ -57,7 +57,19 @@ Everything must be committed to git. If you create a new file, immediately `git 
 **Impact:** Direct revenue recovery. Abandoned cart emails typically recover 3-8% of lost carts. Premium feature with high perceived value. Essential for Subscribify users selling subscription products.
 **Effort:** Medium–High
 
----
+### Lattice Mail: Subscriber Preference Center
+**Plugin:** Lattice Mail
+**Problem:** Once subscribed, customers have no way to manage what emails they receive or how often. They either stay subscribed to everything (leading to fatigue and unsubscribe) or manually email the store to ask to be removed from specific campaigns. No self-service preference management means more unsubscribes and more support load.
+**Solution:** Add a "Manage Preferences" page accessible via `/email-preferences/` URL (linked in every email footer). Logged-in or email-matched subscriber sees: email frequency preference (All emails / Weekly digest / Monthly digest), topic interests (checkboxes: Product updates, Deals, AI tool reviews, Tutorials), notification opt-ins per auto-responder. Subscriber can update their profile and resubscribe to specific flows. Preferences stored in `lattice_mail_subscribers.meta`. Uses `?subscriber_hash` token in email links for non-logged-in users. GDPR-compliant: easy unsubscribe, data export option.
+**Impact:** Reduces unsubscribe rates (subscribers downgrade frequency instead of full unsubscribe). Increases relevance of emails (better segmentation). Low effort to build on existing subscriber data structure.
+**Effort:** Medium
+
+### Lattice Mail: Email Subject Line AI Optimizer
+**Plugin:** Lattice Mail
+**Problem:** Subject lines are the #1 factor in open rates. Most WooCommerce store owners write subject lines by instinct, not data. Klaviyo and Mailchimp offer AI subject line scoring but require their platforms. No in-WordPress AI subject line tool exists.
+**Solution:** In the campaign editor, add a "Subject Line Optimizer" panel: user enters their draft subject line, clicks "Analyze". Plugin checks: character count (optimal 40-60 chars), preview text integration, personalization token presence ({first_name} boosts open rate), question vs statement, emoji presence (context-dependent), power words (tested open-rate boosters). Shows a 0-100 score with breakdown. Optional: suggest 3 alternative subject lines. Uses a simple rules-based algorithm (no external API needed) — proven best practices encoded as scoring rules.
+**Impact:** Measurable open rate improvement. Self-service AI without requiring external AI API or subscription. Differentiator for Lattice Mail vs basic WordPress email plugins.
+**Effort:** Low–Medium
 
 ### GROWTH OPPORTUNITIES
 
@@ -115,3 +127,18 @@ Impact: Medium
 Problem: The Campaigns section lists campaigns but shows no visual indicator of whether a campaign is Draft, Scheduled, Sending, or Sent. User must click into each campaign to determine its current state — an unnecessary friction point for daily email operations.
 Solution: Add a Status column to the Campaigns list table with color-coded badges: Draft (gray), Scheduled (blue), Sending (yellow animated), Sent (green), Failed (red). Add bulk actions to pause/resume scheduled campaigns.
 Impact: Medium
+
+**Growth: Add Subscriber Count Label to Dashboard Stat Boxes**
+Problem: Lattice Mail dashboard shows 4 stat boxes (Subscribers, Campaigns, etc.) but the numbers "0" have no labels above or below them. A user seeing an empty dashboard cannot determine what each box represents without clicking into each section.
+Solution: Add a clear label above each stat box (e.g., "Total Subscribers", "Active Campaigns", "Sent this month"). Use larger, styled labels distinct from the number below. This immediately communicates what each metric measures.
+Impact: Medium
+
+**Growth: Add SMTP Test Button to SMTP Settings**
+Problem: Users configuring SMTP have no way to verify their settings work before saving. They must save, send a test email manually, and troubleshoot if it fails.
+Solution: Add a "Send Test Email" button in the SMTP settings section. Clicking it opens a modal where the user enters a test email address and clicks Send. Show success/error message inline without leaving the page.
+Impact: Medium
+
+**Growth: Add Campaign Scheduling Preview Before Publishing**
+Problem: When creating a campaign, users set a scheduled send time but see no preview of when the email will arrive in the subscriber's inbox relative to their local time.
+Solution: Below the schedule datetime picker, show a preview: "Email will be sent: Thursday, April 16 at 10:00 AM (your subscribers' local time zones may vary)". Add timezone indicator showing the server timezone vs selected schedule timezone.
+Impact: Low
