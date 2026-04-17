@@ -8,7 +8,12 @@
 *None for now.*
 
 ## Priority: P1 (Important — this week)
-*None for now.*
+
+### P1-1: Add stat card labels to Lattice Mail dashboard
+**GitHub:** [#1](https://github.com/kaygaaf/lattice-mail/issues/1) | **Priority:** P1
+**Problem:** The dashboard (admin.php?page=lattice-mail) shows 3 large stat numbers at the top as `<h3>` elements with no labels — no "Subscribers", "Campaigns Sent", or "Open Rate" text is visible. A new user sees three zeroes with no idea what each number represents.
+**Solution:** Add descriptive labels above or below each stat number. Example: "Total Subscribers", "Active Campaigns", "Avg. Open Rate". Use `<span class="stat-label">` or `<p class="stat-desc">` describing each metric.
+**Impact:** High — critical clarity failure on first load.
 
 ## Priority: P2 (Nice to have)
 *None for now.*
