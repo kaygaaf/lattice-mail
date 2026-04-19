@@ -133,6 +133,15 @@ class Lattice_Mail_Admin {
 
         add_submenu_page(
             'lattice-mail',
+            __('SMTP Settings', 'lattice-mail'),
+            __('SMTP Settings', 'lattice-mail'),
+            'manage_options',
+            'lattice-mail-settings&tab=smtp',
+            [$this, 'render_settings']
+        );
+
+        add_submenu_page(
+            'lattice-mail',
             __('Import / Export', 'lattice-mail'),
             __('Import / Export', 'lattice-mail'),
             'manage_options',
@@ -898,11 +907,11 @@ class Lattice_Mail_Admin {
             <h1><?php _e('Lattice Mail Settings', 'lattice-mail'); ?></h1>
 
             <h2 class="nav-tab-wrapper" style="margin-bottom: 20px;">
-                <a href="<?php echo admin_url('admin.php?page=lattice-mail-settings&tab=general'); ?>" class="nav-tab <?php echo $active_tab === 'general' ? 'nav-tab-active' : ''; ?>"><?php _e('General', 'lattice-mail'); ?></a>
+                <a href="<?php echo admin_url('admin.php?page=lattice-mail-settings&tab=general'); ?>" class="nav-tab <?php echo $active_tab === 'general' || $active_tab === 'smtp' ? 'nav-tab-active' : ''; ?>"><?php _e('General', 'lattice-mail'); ?></a>
                 <a href="<?php echo admin_url('admin.php?page=lattice-mail-settings&tab=woo'); ?>" class="nav-tab <?php echo $active_tab === 'woo' ? 'nav-tab-active' : ''; ?>"><?php _e('WooCommerce', 'lattice-mail'); ?></a>
             </h2>
 
-            <?php if ($active_tab === 'general'): ?>
+            <?php if ($active_tab === 'general' || $active_tab === 'smtp'): ?>
             <form method="post" style="max-width: 600px;">
                 <h2><?php _e('Mailer', 'lattice-mail'); ?></h2>
                 <table class="form-table">
