@@ -158,11 +158,8 @@ class Lattice_Mail_Campaign {
                 $email_content
             );
 
-            // Unsubscribe link also gets tracked
-            $email_content .= "\n\n---\n";
-            $email_content .= sprintf('<a href="%s">Unsubscribe</a>', $unsub_url);
-
             // Add open tracking pixel (1x1 transparent image, hidden)
+            // Unsubscribe link is already in the email template footer
             $email_content .= '<img src="' . esc_url($open_url) . '" width="1" height="1" alt="" style="display:none;" />';
 
             $result = $smtp->send($sub->email, $campaign->subject, $email_content);
